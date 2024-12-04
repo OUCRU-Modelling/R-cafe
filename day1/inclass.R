@@ -1,6 +1,7 @@
 # ----- DATA IMPORT AND PREPROCESS ----- 
 # You don't have to worry about this part for now
-renv::restore()
+install.packages("outbreaks")
+install.packages("tidyverse")
 library(outbreaks)
 library(tidyverse)
 covid_cases <- sarscov2_who_2019 %>% 
