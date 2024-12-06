@@ -1,17 +1,7 @@
-# ----- DATA IMPORT AND PREPROCESS ----- 
+# ----- DATA IMPORT----- 
 # You don't have to worry about this part for now
-install.packages("outbreaks")
-install.packages("tidyverse")
-library(outbreaks)
-library(tidyverse)
-covid_cases <- sarscov2_who_2019 %>% 
-  select(date, matches("^cases_[[:alpha:]]{3}$")) %>% 
-  mutate_at(
-    # compute new cases per day from cumulative cases
-    vars(matches("^cases_[[:alpha:]]{3}$")), 
-    ~ c(0, diff(., differences = 1))
-  )
-# ----- END DATA IMPORT AND PREPROCESS ----- 
+covid_cases <- readRDS("day1/data/covid_cases.rds")
+# ----- END DATA IMPORT----- 
 
 
 # ====== IN-CLASS EXERCISES TEMPLATE CODE ======== 
