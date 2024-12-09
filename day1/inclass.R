@@ -15,8 +15,18 @@ basic_stats <- c(
   q3 = quantile(covid_cases[[case_col]], 0.75, names=FALSE),
   max = max(covid_cases[[case_col]])
 )
+compute_stats<-function(data, col_name){
+  basic_stats <- c(
+    min =  min(covid_cases[[col_name]]),
+    q1 = quantile(covid_cases[[col_name]], 0.25, names=FALSE),
+    median = median(covid_cases[[col_name]]),
+    q3 = quantile(covid_cases[[col_name]], 0.75, names=FALSE),
+    max = max(covid_cases[[col_name]])
+  )
+  basic_stats
+}
+compute_stats(data=covid_cases, col_name="cases_chn")
 
-basic_stats
 # ====== END IN-CLASS EXERCISES TEMPLATE CODE ======== 
 
 # ====== ADD YOUR CODE HERE ========
