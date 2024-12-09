@@ -21,4 +21,18 @@ basic_stats
 
 # ====== ADD YOUR CODE HERE ========
 # TODO: Create a function to compute basics stats for a given column
+compute_stats <- function(data, col_name){
+  
+  basic_stats <- c(
+    min =  min(data[[col_name]]),
+    q1 = quantile(data[[col_name]], 0.25, names=FALSE),
+    median = median(data[[col_name]]),
+    q3 = quantile(data[[col_name]], 0.75, names=FALSE),
+    max = max(data[[col_name]])
+  )
+  
+  basic_stats
+}
+
+compute_stats(data = covid_cases, col_name = "cases_chn")
 
