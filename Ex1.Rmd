@@ -1,0 +1,131 @@
+---
+title: "Ex1_Day 1"
+author: "nguyet"
+date: "2024-12-18"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Ex1
+
+```{r}
+library(dplyr)
+library(tidyverse)
+setwd("C:/Users/Win10/Documents/data/data_R")
+getwd()
+covid_cases <- readRDS("C:/Users/Win10/Documents/data/data_R/data/covid_cases.rds")
+class(covid_cases)
+dim(covid_cases)   #92 212
+head(covid_cases)
+tail(covid_cases)
+view(covid_cases)
+summary(covid_cases)
+
+colnames(covid_cases)
+```
+# TASK 2A
+
+```{r}
+# shift control m
+covid_cases<-covid_cases %>% mutate(first_report_date = min(date))
+covid_cases$first_report_date
+covid_cases<-covid_cases %>% mutate(last_report_date = max(date))
+covid_cases$last_report_date
+
+min(covid_cases$date)
+max(covid_cases$date)
+```
+
+# TASK 2B
+
+## 1 cach 1
+
+```{r}
+summary(covid_cases)
+
+
+covid_cases_1<-covid_cases %>% mutate(case_global = rowSums(select(., where(is.numeric))))
+
+covid_cases_1$case_global
+```
+
+## Cách 2
+
+```{r}
+# Calculate the sum of each row in the data frame
+covid_cases_2<-covid_cases %>% select(-c("date", "first_report_date", "last_report_date"))
+dim(covid_cases_2)# 92 211
+row_sums <- rowSums(covid_cases_2)
+row_sums
+# If you want to add this as a new column in the data frame
+covid_cases_2$row_sum <- row_sums
+```
+
+# TASK 2C
+```{r}
+dim(covid_cases_1) #92 215
+colnames(covid_cases_1)
+covid_cases_1<-covid_cases_1 %>% mutate(percent_chn = cases_chn/case_global)
+covid_cases_1$percent_chn
+
+```
+
+# TASK 3
+
+```{r}
+dim(covid_cases_1)#92 216
+view(covid_cases_1)
+# joining 2 strings
+paste("cases_", "chn", sep = "")
+
+```
+
+## 1 set up fuction
+
+```{r}
+# Define the compute_percent function
+data = covid_cases_1
+country_code = "chn"
+summary(data$cases_global)
+compute_percent <- function(data, country_code) {
+  # Create the country column name based on the country code
+  country_column <- paste0("cases_", country_code)
+  print(country_column)
+  # Calculate the percentage of the global cases the country accounts for
+  data %>%
+    mutate(!!paste0("percent_", country_code) := (get(country_column) / case_global) * 100)
+}
+```
+
+## 2 apply function to create 3 new columns for covid_cases: percent_vnm, percent_usa, percent_sgp
+
+```{r}
+library(dplyr)
+dim(covid_cases_1)# 92 216
+
+covid_cases_1 <- covid_cases_1 %>%
+  compute_percent("vnm") %>%
+  compute_percent("usa") %>%
+  compute_percent("sgp") %>%
+  compute_percent("chn")  # Adding percent_chn for completeness
+
+#write.csv(covid_cases_1, "covid_cases_1.csv")
+```
+
+# TASK 4:Generate data summary
+
+Use the function skim() from package skimr to generate summary for the following countries: China, Vietnam, USA, Singapore
+
+```{r}
+library(skimr)
+skim(covid_cases_1 %>% dplyr::select(cases_chn,cases_vnm,cases_usa,cases_sgp))
+colnames(covid_cases_1)
+
+
+```
+
