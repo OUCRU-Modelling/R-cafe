@@ -83,3 +83,8 @@ plot_case(data = df, country_code = "vnm", country = "Vietnam",
 
 ### Task 4
 skimr::skim(df[,c("cases_chn", "cases_vnm", "cases_usa", "cases_sgp")])
+
+## China (Mean = 913 cases, sd = 2207, p50 = 128, 0 missing)
+## Vietnam (Mean = 2.91 cases, sd = 4.53, p50 = 1, 0 missing)
+## USA (Mean = 8166 cases, sd = 12331, p50 = 12, 0 missing)
+## Singapore (Mean = 87.1 cases, sd = 217, p50 = 7.5, 0 missing)
