@@ -106,6 +106,6 @@ skim(covid_cases$cases_sgp)
 ## mean = 87.1 cases, standard deviation = 217 cases
 ## 25th percentile = 0 cases, median = 7.5 cases, 75th  = 51.2 cases
 ## right skewed distribution
-
-
+library(skimr)
+skim(covid_cases,cases_chn,cases_vnm,cases_sgp,cases_usa)
 
