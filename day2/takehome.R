@@ -27,7 +27,7 @@ correct_data <- covid_cases %>%
 
 covid_cases <- correct_data %>%
   mutate(country = str_remove(country, "cases_")) %>%
-  filter(week(date) >= 3 & week(date) <= 12, case >= 0)
+  filter(week(date) >= 3 & week(date) <= 12)
 
 
 ## Task 3
@@ -54,9 +54,12 @@ plot_data <- covid_cases %>%
   ) %>%
   na.omit()
 
+plot_data %>%
+  mutate(country = fct_relevel(country, "chn", "deu", "esp",
+                               "ita", "usa", "Others")) %>% 
 
 ## Task 4
-ggplot(data = plot_data, aes(x = date, y = pct_cases, fill = country)) +
+ggplot(aes(x = date, y = pct_cases, fill = country)) +
   geom_area(color = "black", size = 0.5) +
   scale_x_date(date_labels = "W%U",
                date_breaks = "1 week",
