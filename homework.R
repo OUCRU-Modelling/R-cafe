@@ -5,8 +5,10 @@ covid_cases<-readRDS("day1/data/covid_cases.rds")
 
 #TASK 2
 #The earliest and latest date of data report in the dataset and assign them to 2 variables first_report_date, last_report_date
-first_report_date<- min(covid_cases$date)
-last_report_date<-max(covid_cases$date)
+class(covid_cases$date)=="Date"
+class(covid_cases$date)
+first_report_date<- min(covid_cases$date, na.rm=TRUE)
+last_report_date<-max(covid_cases$date, na.rm=TRUE)
 
 #Create new column case_global for covid_cases, which represents the total cases across every country per report day.
 numeric_columns <- sapply(covid_cases, is.numeric)
@@ -58,7 +60,7 @@ ggplot() +
 #TASK4: GENERATE DATA SUMMARY
 install.packages("skimr")
 library (skimr)
-skimr::skim(covid_cases[c("cases_chn", "cases_vnm", "cases_usa", "cases_sgp")])
+skim(covid_cases, cases_chn, cases_vnm, cases_usa, cases_sgp)
+skim(covid_cases[c("cases_chn", "cases_vnm", "cases_usa", "cases_sgp")])
 
-git add .
-git push -u origin master
+
