@@ -5,14 +5,17 @@ covid_cases <- readRDS("~/Documents/GitHub/R-cafe/day1/data/covid_cases.rds")
 str(covid_cases)
 # Task 2
 #earliest and latest date of data report in the dataset
-first_report_date<- min(covid_cases$date)
+class(covid_cases$date) == "Date"
+first_report_date<- min(covid_cases$date, na.rm=TRUE)
 first_report_date
-last_report_date<- max(covid_cases$date)
+last_report_date<- max(covid_cases$date, na.rm=TRUE)
 last_report_date
 class(covid_cases)
 # Task 3
 # Create new column case_global for covid_cases, which represents the total cases across every country per report day.
 covid_cases <-covid_cases %>% mutate(case_global=rowSums(covid_cases[,2:212], na.rm=TRUE))
+rowSums(covid_cases[,-1])
+
 #covid_cases <-covid_cases %>% mutate(case_global=rowSums(across(where(is.numeric)), na.rm=TRUE))
 #Create a function compute_percent that
 #takes the dataset and the country code (i.e. the 3 characters after cases_ in column name) as input.
@@ -73,6 +76,7 @@ create_graph(data=covid_cases, col_name = "cases_chn", country_name = "Chinna")
 # Use the function skim() from package skimr to generate summary for the following countries: China, Vietnam, USA, Singapore
 install.packages("skimr")
 library(skimr)
+skim(covid_cases, cases_chn, cases_vnm, cases_usa, cases_sgp)
 china_summary<- skim(covid_cases$cases_chn)
 # Chinna: Mean 913 (0-19461)
 vietnam_summary<- skim(covid_cases$cases_vnm)
