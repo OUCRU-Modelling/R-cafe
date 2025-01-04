@@ -1,0 +1,97 @@
+---
+title: "EX2_1"
+author: "Nguyet"
+date: "2025-01-03"
+output: html_document
+---
+# Task 1: Data import
+
+```{r}
+library(dplyr)
+library(tidyverse)
+setwd("C:/Users/Win10/Documents/data/data_R")
+wd<-"C:/Users/Win10/Documents/data/data_R"
+paste0()
+getwd()
+#covid_cases <- readRDS("C:/Users/Win10/Documents/data/data_R/data/covid_cases.rds")
+covid_cases<-readRDS("C:/Users/Win10/Documents/data/data_R/data/covid_cases.rds")
+covid_cases <- readRDS(paste0(wd,"/data/covid_cases.rds"))
+class(covid_cases)
+dim(covid_cases) # 92 212
+```
+
+# Task 2: Data clearning and filltering 
+
+```{r}
+view(covid_cases)
+covid_cases_lengthens1<-covid_cases %>% tidyr::pivot_longer(
+cols = 2:212, 
+names_to = c("country"), 
+values_to = "case")
+)
+view(covid_cases_lengthens1)
+skimr::skim (covid_cases)
+covid_cases_Widens<-covid_cases_lengthens1 %>%
+  tidyr::pivot_wider(names_from = country, values_from = case)
+dim(covid_cases_lengthens1) # 19412 3
+dim(covid_cases_Widens) # 92 212
+Covid_cases_Lengthens1_Filter <- covid_cases_lengthens1 %>% filter(case>=0)
+dim(Covid_cases_Lengthens1_Filter) # 19388 3
+covid_cases_filtered<- covid_cases_lengthens1 %>% filter (case>0&
+                                                            week(date) >= 3&
+                                                            week(date) <=12&
+                                                            year(date) ==2020)
+```
+
+# Task 3: Data transformation
+
+```{r}
+
+covid_cases_trans<-covid_cases_filtered %>% group_by(country) %>% 
+  summarise(total_number_case = sum(case)) %>% arrange(desc(total_number_case)) %>% head(n=5)
+top_countries <- covid_cases_trans %>% pull(country)
+top_countries
+
+```
+## Countries on in the top 5 will be changed to "Others"
+```{r}
+Covid_cases_filtered <- covid_cases_filtered %>%
+  mutate(Top5_highest = if_else(
+    country %in% `top_countries`,
+    country,
+    "Other"
+  ))
+```
+
+## Group by date and country
+
+```{r}
+covid_cases_order<-Covid_cases_filtered %>% group_by(Top5_highest, date) %>% 
+  summarise(total_cases = sum(case))
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
