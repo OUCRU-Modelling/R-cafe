@@ -48,7 +48,10 @@ COVID_other2 <- COVID_filtered %>%
   head(n = 5) 
 
 ###Task 4: Data visualization
-ggplot() +
+
+install.packages("ggplot2")
+
+ggplot2() +
 geom_area(aes(x = date, y = pct_cases,fill = country)) +
 scale_y_continuous(name = "Percent of total cases", breaks = seq(0,1,0.1)) +
 scale_x_date(name = "Date",date_breaks = "1 week") +
