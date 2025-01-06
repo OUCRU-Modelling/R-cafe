@@ -24,13 +24,13 @@ skim(covid_cases)
 
 # filter out incorrect/impossible data
 covid_cases <- covid_cases %>% 
-  filter(!is.na(cases) & cases >0)
+  filter(!is.na(cases) & cases >-1)
 skim(covid_cases)
 
 
 #Filter the data for the week 3-12 of 2020
 covid_cases <- covid_cases %>% 
-  filter(year(date) == 2020 & week(date) >= 3 & week(date) <=12)
+  filter(year(date) == 2020 & week(date) > 3 & week(date) <=12)
 print(covid_cases)
 
 ###Task 3: Data transformation
@@ -76,10 +76,10 @@ print(plot_data)
       country == "ita" ~ "Italy",
       country == "usa" ~ "USA", 
       country == "esp" ~ "Spain",
-      TRUE~ country)), mapping = aes(x = date, y = pct_cases, fill = country)) + 
+      TRUE~ country) %>%  fct_relevel("Others", after = Inf)), mapping = aes(x = date, y = pct_cases, fill = country)) + 
     geom_area() + 
     labs(x = "Date", y = "Percentage of Total Cases") + 
     scale_y_continuous(labels = scales::label_percent(scale = 1), breaks = seq(0, 100, by = 10)) +
-    scale_x_date(date_breaks = "1 week", date_labels = "W%V") + 
+    scale_x_date(date_breaks = "1 week", date_labels = "W%W") + 
     ggtitle("Percentage of COVID-19 Case Counts per Country for the First 10 Weeks of 2020")
   
