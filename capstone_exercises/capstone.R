@@ -122,6 +122,7 @@ IT_PP_vent <- IT_ITT_vent %>% filter(!USUBJID.x %in% exclude_IT_PP$USUBJID)
 
 IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
 
+# primary outcome, reqirement for MV
 tbl_IT_ITT_vent <- IT_ITT_vent %>% 
   mutate(VENSTART = factor(VENSTART, levels= c("Y","N"), labels = c("MV", "No MV"))) %>% 
   tbl_cross(
