@@ -2,7 +2,11 @@
 local({
 
   # the requested version of renv
+<<<<<<< HEAD
   version <- "1.0.11"
+=======
+  version <- "1.0.7"
+>>>>>>> main
   attr(version, "sha") <- NULL
 
   # the project directory
@@ -98,6 +102,7 @@ local({
     unloadNamespace("renv")
 
   # load bootstrap tools   
+<<<<<<< HEAD
   ansify <- function(text) {
     if (renv_ansify_enabled())
       renv_ansify_enhanced(text)
@@ -158,6 +163,8 @@ local({
   
   }
   
+=======
+>>>>>>> main
   `%||%` <- function(x, y) {
     if (is.null(x)) y else x
   }
@@ -202,10 +209,14 @@ local({
     # compute common indent
     indent <- regexpr("[^[:space:]]", lines)
     common <- min(setdiff(indent, -1L)) - leave
+<<<<<<< HEAD
     text <- paste(substring(lines, common), collapse = "\n")
   
     # substitute in ANSI links for executable renv code
     ansify(text)
+=======
+    paste(substring(lines, common), collapse = "\n")
+>>>>>>> main
   
   }
   
@@ -368,11 +379,16 @@ local({
       quiet    = TRUE
     )
   
+<<<<<<< HEAD
     if ("headers" %in% names(formals(utils::download.file))) {
       headers <- renv_bootstrap_download_custom_headers(url)
       if (length(headers) && is.character(headers))
         args$headers <- headers
     }
+=======
+    if ("headers" %in% names(formals(utils::download.file)))
+      args$headers <- renv_bootstrap_download_custom_headers(url)
+>>>>>>> main
   
     do.call(utils::download.file, args)
   
@@ -451,6 +467,7 @@ local({
     for (type in types) {
       for (repos in renv_bootstrap_repos()) {
   
+<<<<<<< HEAD
         # build arguments for utils::available.packages() call
         args <- list(type = type, repos = repos)
   
@@ -466,6 +483,12 @@ local({
         db <- tryCatch(
           as.data.frame(
             do.call(utils::available.packages, args),
+=======
+        # retrieve package database
+        db <- tryCatch(
+          as.data.frame(
+            utils::available.packages(type = type, repos = repos),
+>>>>>>> main
             stringsAsFactors = FALSE
           ),
           error = identity
@@ -547,6 +570,7 @@ local({
   
   }
   
+<<<<<<< HEAD
   renv_bootstrap_github_token <- function() {
     for (envvar in c("GITHUB_TOKEN", "GITHUB_PAT", "GH_TOKEN")) {
       envval <- Sys.getenv(envvar, unset = NA)
@@ -555,6 +579,8 @@ local({
     }
   }
   
+=======
+>>>>>>> main
   renv_bootstrap_download_github <- function(version) {
   
     enabled <- Sys.getenv("RENV_BOOTSTRAP_FROM_GITHUB", unset = "TRUE")
@@ -562,6 +588,7 @@ local({
       return(FALSE)
   
     # prepare download options
+<<<<<<< HEAD
     token <- renv_bootstrap_github_token()
     if (nzchar(Sys.which("curl")) && nzchar(token)) {
       fmt <- "--location --fail --header \"Authorization: token %s\""
@@ -572,6 +599,18 @@ local({
     } else if (nzchar(Sys.which("wget")) && nzchar(token)) {
       fmt <- "--header=\"Authorization: token %s\""
       extra <- sprintf(fmt, token)
+=======
+    pat <- Sys.getenv("GITHUB_PAT")
+    if (nzchar(Sys.which("curl")) && nzchar(pat)) {
+      fmt <- "--location --fail --header \"Authorization: token %s\""
+      extra <- sprintf(fmt, pat)
+      saved <- options("download.file.method", "download.file.extra")
+      options(download.file.method = "curl", download.file.extra = extra)
+      on.exit(do.call(base::options, saved), add = TRUE)
+    } else if (nzchar(Sys.which("wget")) && nzchar(pat)) {
+      fmt <- "--header=\"Authorization: token %s\""
+      extra <- sprintf(fmt, pat)
+>>>>>>> main
       saved <- options("download.file.method", "download.file.extra")
       options(download.file.method = "wget", download.file.extra = extra)
       on.exit(do.call(base::options, saved), add = TRUE)

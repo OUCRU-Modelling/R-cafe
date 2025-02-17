@@ -21,7 +21,12 @@ basic_stats
 
 # ====== ADD YOUR CODE HERE ========
 # TODO: Create a function to compute basics stats for a given column
+<<<<<<< HEAD
 compute_stats <-  function(data, col_name){
+=======
+compute_stats <- function(data, col_name){
+  
+>>>>>>> main
   basic_stats <- c(
     min =  min(data[[col_name]]),
     q1 = quantile(data[[col_name]], 0.25, names=FALSE),
@@ -29,6 +34,15 @@ compute_stats <-  function(data, col_name){
     q3 = quantile(data[[col_name]], 0.75, names=FALSE),
     max = max(data[[col_name]])
   )
+<<<<<<< HEAD
   return( basic_stats
 }
 compute_stats(data= covid_cases, col_name = "cases_chn")
+=======
+  
+  basic_stats
+}
+
+compute_stats(data = covid_cases, col_name = "cases_chn")
+
+>>>>>>> main

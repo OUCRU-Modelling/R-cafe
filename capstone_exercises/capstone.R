@@ -71,8 +71,7 @@ table_IT <- IT_ITT %>%
       all_continuous() ~ "{median} ({p25} - {p75})",
       all_categorical() ~ "{n}/{N} ({p}%)"), 
     digits = list(all_continuous() ~ 1), 
-    missing = "no"
-    ) %>%  
+    missing = "no") %>%  
     modify_spanning_header(all_stat_cols() ~ "**Intrathecal Intervention**")
 print(table_IT)
 
@@ -171,5 +170,6 @@ tbl_IT_ITT_vent <- IT_ITT_vent %>%
   AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
   AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
   SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
+  
   
   
