@@ -1,0 +1,432 @@
+---
+title: Capstone Hint 1
+author: 
+- name: Tran Thai Hung
+  affiliations:
+    - OUCRU biostat
+date: 'last-modified'
+date-format: '[Last version:] MMMM DD, YYYY'
+format: 
+  html: 
+    code-tools:
+      source: true
+      toggle: false
+      caption: none
+toc: TRUE
+lof: FALSE
+lot: FALSE
+number-sections: FALSE
+thanks: "Please do not circulate."
+abstract: ""
+keywords: ""
+editor: visual
+---
+
+```{r load-library, message=FALSE, warning=FALSE}
+#load library
+library(readxl)
+library(dplyr)
+library(data.table)
+library(stringr)
+library(ggplot2)
+library(gtsummary)
+library(Hmisc)
+```
+
+# 1. Load data
+
+Import all the sheets in raw data `2-10-2020-_03TS_V1_Data.xls`. Convert "UNKNOWN" value to NA, and "Y"/"N" to standard factorized "yes"/"no" which will be convenient as later gtsummary will automatically detect dichotomous variables.
+
+<details>
+
+<summary>[Import raw data]{style="color:blue"}</summary>
+
+```{r load-data, message=FALSE, warning=FALSE}
+# Define file path
+daily_file_path <- here::here("data", "2-10-2020-_03TS_V1_Data.xls")
+
+# Define sheets to import
+sheets <- c("ENR", "ADM", "VENT", "VENT_VENTILATION", "VENT_TracheSupp", "DAILY", 
+            "DAILY_DAILY", "COMP", "FU", "DAILY_FU", "DAILY_FU_GridFU", "S_AE")
+
+# Read and store data in a named list
+data_list <- lapply(sheets, function(sheet) {
+  df <- read_excel(daily_file_path, sheet = sheet)
+  
+  # Replace "UNKNOWN" with NA, convert "Y"/"N" to "yes"/"no"
+  df <- df %>%
+    mutate(across(where(is.character), ~ case_when(
+      .x == "Y" ~ "yes",
+      .x == "N" ~ "no",
+      .x == "UNKNOWN" ~ NA_character_,
+      TRUE ~ .x
+    ))) %>%
+    mutate(across(where(~ all(.x %in% c("yes", "no", NA), na.rm = TRUE)), 
+                  ~ factor(.x, levels = c("no", "yes"), labels = c(0, 1), exclude = NULL)))  # Ensure both levels exist
+
+  setNames(df, tolower(names(df)))
+})
+
+# Assign data frames to variables in the global environment
+list2env(setNames(data_list, tolower(sheets)), envir = .GlobalEnv)
+
+
+# another method
+# for (sheet in sheets) {
+#   assign(tolower(sheet), read_excel(daily_file_path, sheet = sheet) %>%  
+#            setNames(tolower(names(.))))
+# }
+```
+
+</details>
+
+Import the allocation data of treatment arm `03TS_Randlist.xlsx` and recode the values as being stated in the dictionary.
+
+<details>
+
+<summary>[Import random allocation data]{style="color:blue"}</summary>
+
+```{r}
+allocation_file_path <- here::here("data", "03TS_Randlist.xlsx")
+
+
+# Read and process allocation data
+allocation_data <- read_excel(allocation_file_path, sheet = "Allocation") %>%  
+  setNames(tolower(names(.)))
+
+randolist <- allocation_data %>%  filter(row_number() %in% c(1:272)) %>%
+  rename(arm = r.arm) %>%  
+      mutate(pat.id=str_replace(pat.id,".*-", ""),
+             usubjid=paste("003",pat.id,sep="-"),
+             arm = case_when(
+               arm == "14 ampoules: TETANUS ANTITOXIN (IM) + 2 prefilled-syringes : TETAGAM®P (intrathecal))" ~ "equine and intrathecal",
+               arm == "14 ampoules: TETANUS ANTITOXIN (IM)" ~ "equine and sham",
+               arm == "12 prefilled-syringes : TETAGAM®P (IM) + 2 prefilled-syringes : TETAGAM®P (intrathecal))" ~ "human and intrathecal",
+               arm == "12 prefilled-syringes : TETAGAM®P (IM)" ~ "human and sham"))
+
+```
+
+</details>
+
+Import the inclusion and exclusion data `Protocol violations, exclusions, withdrawals.xlsx`. Fix the inconsistency in sheet `IM ITT` which used `id` instead of `usubjid`.
+
+<details>
+
+<summary>[Import inclusion and exclusion data]{style="color:blue"}</summary>
+
+```{r}
+violations_file_path <- here::here("data", "Protocol violations, exclusions, withdrawals.xlsx")  
+
+# Import all sheets from the Protocol violations file
+all_sheets <- excel_sheets(violations_file_path)  # Get sheet names
+violations_data <- lapply(all_sheets, function(sheet) {
+  data <- read_excel(violations_file_path, sheet = sheet)
+  colnames(data) <- tolower(colnames(data))  # Convert column names to lowercase
+  data
+})
+names(violations_data) <- all_sheets  # Assign sheet names to the list
+
+
+for (name in names(violations_data)) {
+  # Modify the name: make lowercase and replace spaces with underscores
+  modified_name <- gsub(" ", "_", tolower(name))
+  
+  # Assign the data frame to the modified name
+  assign(modified_name, violations_data[[name]])
+}
+
+im_itt <- im_itt %>% 
+  rename(usubjid = "id")
+```
+
+</details>
+
+Exclude all `usubjid` that were in pilot study and/or withdrew the consent.
+
+<details>
+
+<summary>[Filter data]{style="color:blue"}</summary>
+
+```{r}
+library(dplyr)
+library(purrr)
+
+
+# Identify subjects to be excluded
+excluded_subjects <- unique(c(pilot$usubjid, withdrawals$usubjid))
+
+# List of dataset names
+dataset_names <- c(
+  "vent", "enr", "adm", "vent_ventilation", "vent_trachesupp",
+  "daily", "daily_daily", "comp", "fu", "daily_fu", "daily_fu_gridfu", "s_ae"
+)
+
+# Apply filtering to all datasets and reassign them
+filtered_datasets <- map(setNames(dataset_names, dataset_names), ~ {
+  get(.x) %>% filter(!usubjid %in% excluded_subjects)
+})
+
+# Assign filtered datasets back to their original names
+list2env(filtered_datasets, envir = .GlobalEnv)
+```
+
+</details>
+
+Relabel variable and add units. So they will appear nicely in the table later. You might notice that I have created a new variable `bmi` here too. You could try to compute `APACHE II score`, `SOFA score` and `Tetanus Severity Score` too.
+
+<details>
+
+<summary>[Baseline data]{style="color:blue"}</summary>
+
+```{r}
+baseline_data <- enr %>% 
+  select(-entry) %>%
+  left_join(adm, by = "usubjid") %>% 
+  left_join(randolist %>% select(usubjid, arm), by = "usubjid")
+
+baseline_data_raw <- upData(baseline_data,
+    bmi = weight/((height/100)^2), #new variable derived from weight and height
+   labels = c(
+    age = "Age (years)",
+    icudays = "Days in ICU",
+    sex = "Sex",
+    weight = "Weight (kg)",
+    height = "Height (cm)",
+    bmi = "BMI (kg/m2)",
+    source = "Source",
+    tetanus = "Tetanus",
+    hypertension = "Hypertension",
+    myocardialinfart = "Myocardial infarction",
+    angina = "Angina",
+    perivascular = "Perivascular",
+    chronicpul = "Chronic pulmonary",
+    connectivetissue = "Connective tissue",
+    mildliver = "Mild liver",
+    hemiplegia = "Hemiplegia",
+    diawithchronic = "Diabetes with chronic",
+    severeliver = "Severe liver",
+    aids = "AIDS",
+    cardiacfailureiii = "Cardiac failure III",
+    cardiacfailureiv = "Cardiac failure IV",
+    cerebrovascular = "Cerebrovascular",
+    severeresp = "Severe respiratory",
+    pepticulcer = "Peptic ulcer",
+    diabetes = "Diabetes",
+    severekidney = "Severe kidney",
+    malignancy = "Malignancy",
+    tumour = "Tumour",
+    dementia = "Dementia",
+    comorbidityoth1 = "Other comorbidity 1",
+    comorbidityoth2 = "Other comorbidity 2",
+    electivesurgery = "Elective surgery",
+    emergencysurgery = "Emergency surgery",
+    timetoadm = "Duration of illness (days)",
+    incubationperiod = "Incubation period (days)",
+    incuperiodonset = "Period of onset (days)",
+    wound = "Wound",
+    diffbreath = "Difficulty breathing on admission",
+    ablettscore = "Ablett Score on admission",
+    asa = "ASA score",
+    maxtemp = "Maximum temperature during 1st day",
+    resp = "Respiratory rate",
+    fio2 = "FiO2",
+    spo2 = "SpO2",
+    pao2 = "PAO2",
+    ph = "PH",
+    plt = "Platelet count",
+    wbc = "White blood cell count",
+    hct = "Haematocrit",
+    maxhr = "Max HR",
+    minhr = "Min HR",
+    maxsbp = "Max SBP",
+    worstdbp = "Worst DBP",
+    worstsbp = "Worst SBP",
+    vaso = "Vasopressors",
+    bili = "Bilirubin",
+    na = "Sodium",
+    k = "Potassium",
+    creat = "Creatinine",
+    renalfailure = "Acute Renal Failure"
+  )
+)
+```
+
+</details>
+
+# 2. Baseline table
+
+When we write the code to create baseline tables for 5 different populations, we might notice that they are just repeated except for a first few filtering steps. Therefore, it's good to wrap those repeated codes in a function to make our code neat and if we would like to make any changes, we just need to change at one place. This example is not optimal. Let's think some ways to improve it based on what you have learnt in Rcafe course.
+
+<details>
+
+<summary>[Wrap repeated code in a function]{style="color:blue"}</summary>
+
+```{r}
+generate_baseline_summary <- function(baseline_data) {
+  library(dplyr)
+  library(gtsummary)
+  
+  # Select relevant columns
+  baseline_data <- baseline_data %>%
+    select(usubjid, age, sex, bmi, source, tetanus, icudays, outcome, hypertension, 
+           myocardialinfart, angina, perivascular, chronicpul, connectivetissue, 
+           mildliver, hemiplegia, diawithchronic, severeliver, aids, cardiacfailureiii, 
+           cerebrovascular, severeresp, pepticulcer, diabetes, severekidney, malignancy, 
+           tumour, dementia, renalfailure, electivesurgery, emergencysurgery, timetoadm, 
+           incubationperiod, incuperiodonset, wound, diffbreath, ablettscore, asa, 
+           maxtemp, resp, fio2, spo2, pao2, ph, plt, wbc, hct, maxhr, minhr, maxsbp, 
+           worstdbp, worstsbp, vaso, na, k, creat, Arm) %>% 
+    as.data.frame(stringsAsFactors = FALSE)
+  
+  # Identify factor variables, excluding "Arm"
+  factor_vars <- setdiff(names(baseline_data)[sapply(baseline_data, is.factor)], "Arm")
+  
+  # Create a formula dynamically: c(var1, var2, ...) ~ "1"
+  value_formula <- as.formula(paste("c(", paste(factor_vars, collapse = ", "), ") ~ '1'"))
+  
+  # Generate the summary table
+  baseline_table <- baseline_data %>%
+    select(-usubjid) %>%
+    tbl_summary(
+      by = Arm, 
+      missing = "no", # Handle missing values
+      statistic = list(
+        all_continuous() ~ "{median} ({p25}, {p75})", 
+        all_categorical() ~ "{n}/{N} ({p}%)"
+      ),
+      digits = list(all_continuous() ~ 1),
+      type = list(fio2 ~ "continuous"),
+      value = value_formula  # Apply "1" to all factor variables
+    ) %>%
+    modify_header(label ~ "Variable") %>%
+    bold_labels()
+  
+  return(baseline_table)
+}
+
+```
+
+</details>
+
+::: panel-tabset
+### Baseline table IT_ITT
+
+<details>
+
+<summary>Click to expand/collapse</summary>
+
+```{r}
+# Prepare baseline data
+baseline_data <- baseline_data_raw %>% 
+  mutate( 
+    Arm = recode(arm, 
+                 "equine and intrathecal" = 0, 
+                 "human and intrathecal" = 0,
+                 "human and sham" = 1,
+                 "equine and sham" = 1),
+    Arm = factor(Arm, levels = c(0,1), labels = c("Intrathecal treatment", "Sham procedure"))
+  )
+
+generate_baseline_summary(baseline_data)
+```
+
+</details>
+
+::: column-margin
+Apply our `generate_baseline_summary` function to make tables for 5 different populations. Note how each population is filtered and grouped into treatment arms according to the `Statistical analysis plan`
+:::
+
+### Baseline table IM_ITT
+
+<details>
+
+<summary>Click to expand/collapse</summary>
+
+```{r}
+baseline_data <- baseline_data_raw %>% 
+  filter(!usubjid %in% im_itt$usubjid) %>% 
+  mutate(
+    Arm=recode(arm, "equine and intrathecal" = 0, 
+               "equine and sham" = 0,
+               "human and sham" = 1,
+               "human and intrathecal" = 1),
+    Arm=factor(Arm, levels=c(0,1), labels=c("Equine IM","Human IM"))
+  )
+
+generate_baseline_summary(baseline_data)
+```
+
+</details>
+
+### Baseline table IT_PP
+
+<details>
+
+<summary>Click to expand/collapse</summary>
+
+```{r}
+baseline_data <- baseline_data_raw %>% 
+  filter(!usubjid %in% it_per_protocol$usubjid) %>% 
+  mutate( 
+    Arm = recode(arm, 
+                 "equine and intrathecal" = 0, 
+                 "human and intrathecal" = 0,
+                 "human and sham" = 1,
+                 "equine and sham" = 1),
+    Arm = factor(Arm, levels = c(0,1), labels = c("Intrathecal treatment", "Sham procedure"))
+  )
+
+generate_baseline_summary(baseline_data)
+```
+
+</details>
+
+### Baseline table IM_PP
+
+<details>
+
+<summary>Click to expand/collapse</summary>
+
+```{r}
+baseline_data <- baseline_data_raw %>% 
+  filter(!usubjid %in% im_per_protocol$usubjid) %>% 
+  mutate( 
+    Arm=recode(arm,
+               "equine and intrathecal" = 0, 
+               "equine and sham" = 0,
+               "human and sham" = 1,
+               "human and intrathecal" = 1),
+    Arm=factor(Arm, levels=c(0,1), labels=c("Equine IM","Human IM"))
+  )
+
+generate_baseline_summary(baseline_data)
+```
+
+</details>
+
+### Baseline table IM_ALL
+
+<details>
+
+<summary>Click to expand/collapse</summary>
+
+```{r}
+baseline_data <- baseline_data_raw %>% 
+  mutate( 
+    Arm=recode(arm, "equine and intrathecal" = 0, 
+               "equine and sham" = 0,
+               "human and sham" = 1,
+               "human and intrathecal" = 1),
+    Arm=ifelse(prehtig==1,2,Arm),
+    Arm=factor(Arm, levels=c(0,1,2), labels=c("Equine IM","Human IM","Equine IM pre hospital"))
+  )
+
+generate_baseline_summary(baseline_data)
+```
+
+</details>
+:::
+
+# 3. Coming up next
+
+Could you apply these hints to Adverse Events tables?
