@@ -1,0 +1,606 @@
+---
+title: "exercise capstone"
+format: html
+editor: visual
+author: thanhntl
+---
+
+1.  Load packages necessay for data analysis
+
+```{r}
+library(tidyverse)
+install.packages(c("gtsummary", "broom.helpers"))
+library(gtsummary)
+library(readxl)
+library(dplyr)
+library(janitor)
+
+```
+
+2.  Load the data
+
+```{r}
+
+file_path <- "data/2-10-2020-_03TS_V1_Data.xls"
+ENR <- read_excel(file_path,  sheet = "ENR")
+ADM  <- read_excel(file_path,  sheet = "ADM")
+randlist <- read_excel("data/03TS_Randlist.xlsx", sheet =1)
+withdrawal <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "Withdrawals")
+exclude_IT_PP  <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "IT Per protocol")
+exclude_IM_PP  <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "IM per protocol")
+
+```
+
+3.  Clean data
+
+```{r}
+# Exclude patients recruited in the pilot phase 
+colnames(ENR)
+colnames(ADM)
+ENR <- ENR %>% filter(!str_detect(SUBJID, "^P0[1-5]"))
+ADM <- ADM %>% filter(!str_detect(SUBJID, "^P0[1-5]"))
+
+# create BMI column in ADM
+is.na(ADM$WEIGHT)
+is.na(ADM$HEIGHT)
+ADM <- ADM %>% mutate(BMI = WEIGHT/(HEIGHT/100)^2) 
+
+# create SUBJID for randlist
+randlist <- randlist %>% mutate (SUBJID = str_remove(pat.id, "03TS-"))
+sum(is.na(randlist$SUBJID)) 
+
+#join ENR and ADM data
+joined_data <- ENR %>% 
+  left_join(ADM, by = "SUBJID") %>% 
+  left_join(randlist, by = "SUBJID") %>% 
+  mutate(IT_intervention = ifelse(str_detect(r.arm, "intrathecal"),"Intrathecal treatment", "Sham procedure" )) %>% 
+  mutate(IM_intervention = ifelse(str_detect(r.arm, "TETANUS ANTITOXIN"),"Equine antitoxin", "Human antitoxin" )) %>% 
+  mutate(SEX = factor(SEX,
+    levels = c("F", "M"),
+    labels = c("Female", "Male"))) %>% 
+  mutate(across(where(is.character), ~ case_when(
+    .x == "Y" ~ "yes",
+    .x == "N" ~ "no",
+    .x == "UNKNOWN" ~ NA_character_,
+    TRUE ~ .x))) %>% 
+  mutate(SOURCE =factor(SOURCE,
+                        levels =c(1,2),
+                        labels =c ("Cominuty", "Other hospital"))) %>% 
+  mutate(OUTCOME = factor(OUTCOME,
+                          levels = c(1,2,3,4),
+                          labels = c("Death", "Home/transfer to die", "Hospital transfer", "Home"))) %>% 
+  mutate(WOUND = factor(WOUND, levels = c(1,2), labels = c("Internal or injection", "Other (or unknown)"))) %>% 
+  mutate(FIO2 = as.numeric(as.character(FIO2)),
+         BILI = as.numeric(as.character(BILI)))
+
+colnames(df)[colnames(df) == "NA"] <- "SODIUM"
+
+```
+
+4.  Calculate SOFA
+
+```{r}
+
+df <- joined_data %>%
+    mutate(
+      # Hệ hô hấp (PaO2/FiO2)
+      PAO2_FIO2 = PAO2*100%/%FIO2,
+      SOFA_Resp = case_when(
+        PAO2_FIO2 >= 400 ~ 0,
+        PAO2_FIO2 >= 300 & PAO2_FIO2 < 400 ~ 1,
+        PAO2_FIO2 >= 200 & PAO2_FIO2 < 300 ~ 2,
+        PAO2_FIO2 >= 100 & PAO2_FIO2 < 200 ~ 3,
+        PAO2_FIO2 < 100 ~ 4,
+        TRUE ~ NA_real_), #nếu dữ liệu thiếu thì giữ NA
+      
+      # Các hệ cơ quan khác
+      SOFA_Coag = case_when(
+        PLT >= 150 ~ 0,
+        PLT >= 100 &  PLT < 150 ~ 1,
+        PLT >= 50 &  PLT < 100 ~ 2,
+        PLT >= 20 &  PLT < 50 ~ 3,
+        PLT < 20 ~ 4,
+        TRUE ~ NA_real_),
+      
+      SOFA_Liver = case_when(
+        BILI < 20 ~ 0,
+        BILI >= 20 & BILI <= 32 ~ 1,
+        BILI >= 33 & BILI <= 101 ~ 2,
+        BILI >= 102 & BILI <= 204 ~ 3,
+        BILI > 204 ~ 4,
+        TRUE ~ NA_real_),
+      
+      SOFA_CV = case_when(
+     (MAXSBP + 2*WORSTDBP)/3 >= 70 ~ 0,
+     (MAXSBP + 2*WORSTDBP)/3 < 70 ~ 1,
+      (VASONAME == "Dopamine" & CMDOSE <= 5) | (VASONAME == "Dobutamine") ~ 2,
+      (VASONAME == "Dopamine" & CMDOSE <= 5) |  (VASONAME == "Epinephrine" & CMDOSE <= 0.1) | (VASONAME == "Norepinephrine" & CMDOSE <= 0.1) ~3,
+      (VASONAME == "Dopamine" & CMDOSE <= 15) |  (VASONAME == "Epinephrine" & CMDOSE > 0.1) | (VASONAME == "Norepinephrine" & CMDOSE >0.1) ~4,
+      TRUE ~ NA_real_),
+      
+      SOFA_CNS = case_when(
+        GCS == 15 ~ 0,
+        GCS >= 13 & GCS < 15 ~ 1,
+        GCS >= 10 & GCS < 13 ~ 2,
+        GCS >= 6 & GCS < 10 ~ 3,
+        GCS < 6 ~ 4,
+        TRUE ~ NA_real_),
+      
+      SOFA_Renal = case_when(
+        CREAT < 110 ~ 0,
+        CREAT >= 110 & CREAT <=170 ~ 1,
+        CREAT >= 171 & CREAT <= 299 ~ 2,
+        (CREAT >= 300 & CREAT <= 440) | (URINEOUTPUT >=200 & URINEOUTPUT <500) ~ 3,
+        (CREAT > 400) | (URINEOUTPUT < 200)~ 4,
+        TRUE ~ NA_real_),
+        # Tổng điểm SOFA (bỏ qua NA khi tính tổng)
+     SOFA_total = rowSums(across(starts_with("SOFA_")), na.rm = TRUE))
+summary(df$SOFA_total)
+```
+
+5.  Calculate Tetanus severity score (TSS)
+
+```{r}
+
+df <- df %>% 
+  #age
+  mutate(
+    TSS_age = case_when(
+      AGE <= 70 ~ 0,
+      AGE >=71 & AGE <= 80 ~5,
+      AGE > 80 ~ 10,
+      TRUE ~ NA_real_),
+  # Time from first symptom to admission (days)
+    TSS_TIMETOADM = case_when(
+      TIMETOADM <= 2 ~ 0,
+      TIMETOADM >=3 & TIMETOADM <=5 ~ -5,
+      TIMETOADM >5 ~ -10,
+      TRUE ~ NA_real_),
+  # Difficult breathing in admission
+  TSS_DIFFBREATH = case_when(
+    DIFFBREATH == "no" ~ 0,
+    DIFFBREATH == "yes" ~ 4,
+    TRUE ~ NA_real_),
+  # Co-existing medical conditionns described by ASA
+  TSS_ASA = case_when(
+    ASA == 1 ~ 0,
+    ASA == 2 ~ 3,
+    ASA == 3 ~ 5,
+    ASA == 4 ~ 5,
+    ASA == 5 ~ 9,
+    TRUE ~ NA_real_),
+  # Entry site (Internal or injection or unknow)
+  TSS_wound = case_when(
+    WOUND == 1 ~7,
+    WOUND == 2 ~0, 
+    TRUE ~ NA_real_),
+  # Highest systolic blood pressure recorded during first day in hospital (mmHg
+  TSS_MAXSBP = case_when(
+    MAXSBP <= 130 ~ 0,
+    MAXSBP >= 131 & MAXSBP <= 140 ~ 2,
+    MAXSBP > 140 ~ 4,
+    TRUE ~ NA_real_),
+  # Highest heart rate recorded during first day in hospital (bpm)
+  TSS_MAXHR = case_when(
+    MAXHR <= 100 ~0,
+    MAXHR >= 101 & MAXHR <= 110 ~ 1,
+    MAXHR >= 111 & MAXHR <= 120 ~ 2,
+    MAXHR > 120 ~ 4,
+    TRUE~ NA_real_),
+  # Lowest heart rate recorded during first day in hospital (bpm)
+  TSS_MINHR = case_when(
+    MINHR <= 110 ~ 0,
+    MINHR > 110 ~ -2,
+    TRUE ~ NA_real_ ),
+  # Highest temperature recorded during first day in hospital (0C)
+  TSS_TEMP = case_when(
+    MAXTEMP <= 38.5 ~ 0,
+    MAXTEMP >= 38.6 & MAXTEMP <= 39 ~ 4,
+    MAXTEMP >= 39.1 & MAXTEMP <= 40 ~ 6,
+    MAXTEMP > 40 ~ 8,
+    TRUE ~ NA_real_),
+  # total TSS
+  TSS_total = rowSums(across(starts_with("TSS_")), na.rm = TRUE ))
+  summary(df$TSS_total)
+```
+
+6.  Calculate Apache II
+
+```{r}
+
+  df <- df %>%
+    mutate(
+      # Temperature (°C)
+      APS_TEMP = case_when(
+        MAXTEMP >= 41 |  MAXTEMP <= 29.9 ~ 4,
+        (MAXTEMP <= 40.9 & MAXTEMP >= 39) | (MAXTEMP <= 31.9 & MAXTEMP >= 30) ~ 3,
+        (MAXTEMP <= 38.9 & MAXTEMP >= 38.5) | (MAXTEMP <= 35.9 & MAXTEMP >= 34) ~ 1,
+        MAXTEMP <= 38.4 & MAXTEMP >= 36 ~ 0,
+        TRUE ~ NA_real_),
+      
+      # Mean Arterial Pressure (MAP)
+      MAP = (MAXSBP + 2 * WORSTDBP) / 3,
+      APS_MAP = case_when(
+        MAP >= 160 | MAP <= 49 ~ 4,
+        MAP >= 130 &  MAP <= 159 ~ 3,
+        (MAP >= 110 &  MAP <= 129) |  (MAP >= 50 &  MAP <= 69) ~ 2,
+        MAP >= 70 &  MAP <= 109 ~ 0,
+        TRUE ~ NA_real_),
+      
+      # Heart Rate
+      APS_HR = case_when(
+        MAXHR >= 180 | MINHR <= 39 ~ 4,
+        (MAXHR >= 140 & MAXHR <= 179) | (MINHR>= 40 & MINHR<= 54) ~ 3,
+        (MAXHR >= 110 & MAXHR <= 139) | (MINHR>= 55 & MINHR<= 69) ~ 2,
+        (MAXHR >= 70 & MAXHR <= 109) ~ 0, 
+        TRUE ~ NA_real_),
+      
+      # Respiratory Rate
+      APS_RR = case_when(
+        RESP >= 50 | RESP <= 5 ~ 4,
+        RESP >= 35 &  RESP <= 49 ~ 3,
+        RESP >= 6 &  RESP <= 9 ~ 2,
+        (RESP >= 25 &  RESP <= 34) | (RESP >= 10 &  RESP <= 11) ~ 1,
+        RESP >= 12 &  RESP <= 24 ~ 0,
+        TRUE ~ NA_real_ ),
+      
+      # Calculate AaDo2 from FIO2
+      AaDO2 = (AGE/4)+4+50*(FIO2/100-0.21),
+      
+      # Oxygenation
+      APS_FIO2 = case_when(
+        FIO2 <= 50 & AaDO2 >= 500 ~ 4,
+        FIO2 <=50 & AaDO2 >= 350 & AaDO2 <= 499~ 3,
+        FIO2 <= 50 & AaDO2 >= 200 & AaDO2 <= 349 ~ 2,
+        FIO2 <= 50 & AaDO2 < 200 ~ 0,
+        FIO2 > 50 & PAO2 > 70 ~ 0,
+        FIO2 > 50 & PAO2 >= 61 & PAO2 <= 70 ~ 1,
+        FIO2 > 50 & PAO2 >= 55 & PAO2 <= 60 ~ 3,
+        FIO2 > 0.5 & PAO2 <55 ~ 4,
+        TRUE ~ NA_real_ ),
+      
+      # PH
+      APS_PH = case_when(
+        PH >= 7.7 | PH < 7.15 ~ 4,
+        (PH >= 7.6 & PH <= 7.60) | (PH >= 7.15 & PH <= 7.24) ~ 3,
+        PH >= 7.25 & PH <= 7.32 ~ 2,
+        PH >= 7.50 & PH <= 7.59 ~ 1,
+        PH >= 7.33 & PH <= 7.49 ~ 0,
+        TRUE ~ NA_real_ ),
+     
+      # Serum Sodium (Na+)
+      APS_SODIUM = case_when(
+        SODIUM >= 180 | SODIUM < 120 ~ 4,
+        (SODIUM >= 160 & SODIUM <= 179) | (SODIUM>=111 & SODIUM <=119) ~ 3,
+        (SODIUM >= 155 & SODIUM <= 159) | (SODIUM>= 120 & SODIUM <= 129) ~ 2,
+        SODIUM >= 150 & SODIUM <= 154 ~ 1,
+        SODIUM >= 130 & SODIUM <= 149 ~ 0,
+        TRUE ~ NA_real_),
+      
+      # Serum Potassium (K+)
+      APS_K = case_when(
+        K >= 7 |  K < 2.5 ~ 4,
+        K >= 6 & K <= 6.9 ~ 3,
+        K >= 2.5 & K <= 2.9 ~ 2,
+        (K >= 5.5 & K <= 5.9) |  (K >= 3 & K <= 3.4) ~ 1,
+        K >= 3.5 & K <= 5.4 ~ 0,
+        TRUE ~ NA_real_ ),
+      
+      # Creatinine
+      APS_CREAT = case_when(
+        CREAT >= 3.5 ~ 4,
+        CREAT >= 2.0 & CREAT <= 3.4 ~ 3,
+        (CREAT >= 1.5 & CREAT <= 1.9) |  CREAT < 0.6 ~ 2,
+        CREAT >= 0.6 & CREAT <= 1.4 ~ 0,
+        TRUE ~ NA_real_),
+    
+      # Hematocrit
+      APS_HCT = case_when(
+        HCT >= 60 |  HCT < 20 ~ 4,
+        (HCT >= 50 & HCT <= 59.9) |  (HCT >= 20 & HCT <= 29.9)  ~ 2,
+        HCT >= 46 & HCT <= 49.9 ~ 1,
+        HCT >= 30 & HCT <=45.9 ~ 0,
+        TRUE ~ NA_real_),
+      
+      # White blood cells
+      APS_WBC = case_when(
+        WBC >= 40 | WBC < 1 ~ 4,
+        (WBC >= 20 & WBC <= 39.9) | (WBC >= 1 & WBC <= 2.9) ~ 2,
+        WBC >= 15 & WBC <= 19.9 ~ 1,
+        WBC >= 3 & WBC <= 14.9 ~ 0,
+        TRUE ~ NA_real_ ),
+      
+      # Glasgow Coma Score (GCS)
+      APS_GCS = case_when(
+      is.na(GCS) ~ NA_real_,
+      TRUE ~ 15 - GCS),
+      
+      # Age
+      APS_age = case_when(
+        AGE < 45 ~ 0,
+        AGE >= 45 & AGE <= 54 ~ 2,
+        AGE >= 55 & AGE <= 64 ~ 3,
+        AGE >= 65 & AGE <= 74 ~ 5,
+        AGE >= 75 ~ 6, 
+        TRUE ~ NA_real_ ),
+    
+      # Chronic diseases
+      APS_Chronic = case_when(
+        str_detect(paste(HYPERTENSION, MYOCARDIALINFART, ANGINA, PERIVASCULAR, CHRONICPUL, CONNECTIVETISSUE, MILDLIVER,
+                        HEMIPLEGIA, DIAWITHCHRONIC, SEVERELIVER, AIDS, CARDIACFAILUREIII, CARDIACFAILUREIV, CEREBROVASCULAR, SEVERERESP,
+                        PEPTICULCER,	DIABETES,	SEVEREKIDNEY,	MALIGNANCY,	TUMOUR), "yes") & ELECTIVESURGERY =="yes" ~2,
+        
+        str_detect(paste(HYPERTENSION, MYOCARDIALINFART, ANGINA, PERIVASCULAR, CHRONICPUL, CONNECTIVETISSUE, MILDLIVER,
+                        HEMIPLEGIA, DIAWITHCHRONIC, SEVERELIVER, AIDS, CARDIACFAILUREIII, CARDIACFAILUREIV, CEREBROVASCULAR, SEVERERESP,
+                        PEPTICULCER,	DIABETES,	SEVEREKIDNEY,	MALIGNANCY,	TUMOUR), "yes") & EMERGENCYSURGERY =="yes" ~5,
+        TRUE ~ NA_real_ ),    
+
+      # Total APACHE II
+      APACHE_total = rowSums(across(starts_with("APS_")), na.rm = TRUE)
+    )
+  
+  summary(df$APACHE_total)
+
+```
+
+7.  Define target population for analysis
+
+    ```{r}
+
+    IT_ITT <- df %>% filter(!is.na(RANDTC)) %>% 
+      filter(!USUBJID.x %in% withdrawal$USUBJID)
+    IM_ITT <- df %>% filter(PREHTIG == "no") %>% 
+      filter(!USUBJID.x %in% withdrawal$USUBJID)
+    IT_PP<- IT_ITT %>% filter(!USUBJID.x %in% exclude_IT_PP$USUBJID)
+    IM_PP <- IM_ITT %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
+    IM_ALL <- df %>% filter(!USUBJID.x %in% withdrawal$USUBJID)
+    ```
+
+8.  Create function to summary characteristics of patients
+
+    ```{r}
+
+    baseline_table <- function(data, intervention) {
+      data %>% 
+      tbl_summary(
+        by = intervention,
+        include = c(AGE,SEX,BMI, SOURCE, ICUDAYS, OUTCOME,HYPERTENSION,MYOCARDIALINFART, 
+                    ANGINA,	PERIVASCULAR,	CHRONICPUL,	CONNECTIVETISSUE,	MILDLIVER, HEMIPLEGIA,	
+                    DIAWITHCHRONIC,	SEVERELIVER,	AIDS,	CARDIACFAILUREIII,	CARDIACFAILUREIV,	
+                    CEREBROVASCULAR,	SEVERERESP,	PEPTICULCER,	DIABETES,	SEVEREKIDNEY,	
+                    MALIGNANCY,	TUMOUR,	DEMENTIA, ELECTIVESURGERY,EMERGENCYSURGERY,
+                    TIMETOADM, INCUBATIONPERIOD, INCUPERIODONSET, WOUND, DIFFBREATH,
+                    MAXTEMP, GCS,	RESP,	FIO2,	SPO2,	PAO2,	PH,	PLT,	WBC,	HCT,	
+                    MAXHR,	MINHR,	MAXSBP,	WORSTSBP,	WORSTDBP,	VASO, 
+                    BILI,	SODIUM,	K,	CREAT,	URINEOUTPUT,	RENALFAILURE,	IMMUNOCOMPROMISED,
+                    ASA, ABLETTSCORE, SOFA_total, TSS_total, APACHE_total),
+        type = list(FIO2 ~ "continuous", BILI ~ "continuous", SOFA_total~"continuous"),
+        label = list(
+          SEX ~ "Sex", 
+          AGE ~ "Age (years)", 
+          BMI ~ "Body mass index (kg/m²)", 
+          SOURCE ~ "Source",
+          ICUDAYS ~ "Days in ICU (days)",
+          OUTCOME ~ "Outcome",
+          HYPERTENSION ~ " Hypertention",
+          MYOCARDIALINFART ~ "Myocardial infarction", 
+          ANGINA ~ "Angina",	
+          PERIVASCULAR ~ "Perivascular",
+          CHRONICPUL ~ "Chronic pulmonary",
+          CONNECTIVETISSUE ~ "Connectivetissue",
+          MILDLIVER ~ "Mild liver",
+          HEMIPLEGIA ~ "Hemiplegia",
+          DIAWITHCHRONIC ~ "Diabetes with chronic",	
+          SEVERELIVER ~" Severe liver",
+          CARDIACFAILUREIII ~ "Cardiac failure III",	
+          CARDIACFAILUREIV ~ "Cardiac failure IV",	
+          CEREBROVASCULAR ~ "Cerebrovascular",	
+          SEVERERESP ~ "Severe respiratory",	
+          PEPTICULCER ~ "Peptic ulcer",	
+          DIABETES ~ "Diabetes",	
+          SEVEREKIDNEY ~ "Severe kidney",	
+          MALIGNANCY ~ "Malignancy",
+          TUMOUR ~ "Tumour",	
+          DEMENTIA ~ "Dementia", 
+          ELECTIVESURGERY ~ "Elective surgery",
+          EMERGENCYSURGERY ~ "Emergency surgery",
+          TIMETOADM ~ "Duration of illness (days)", 
+          INCUBATIONPERIOD ~ "Incubation period (days)", 
+          WOUND ~ "Wound", 
+          DIFFBREATH ~ " Difficult to breath",
+          ASA ~ "ASA score",
+          ABLETTSCORE ~ "Ablett Score on admission",
+          MAXTEMP ~ "Maximum temperature during 1st day",
+          RESP ~ "Respiratory rate",	
+          FIO2 ~ "FiO2",
+          PLT ~ "Platelet count",	
+          WBC ~ "White blood count",	
+          HCT ~ "Hematocrit",	
+          MAXHR ~ "Max HR",	
+          MINHR ~ "Min HR",	
+          MAXSBP ~ "Max SBP",	
+          WORSTSBP ~ "Worst SBP",	
+          WORSTDBP ~ " Worst DBP",
+          VASO ~ "Vasopressors",
+          BILI ~ "Bilirubin",	
+          SODIUM ~ "Sodium",	
+          K ~ "Potasium",	
+          CREAT ~ "Creatinin",	
+          URINEOUTPUT ~ " Urin output",	
+          RENALFAILURE ~ "Renal failuer",	
+          IMMUNOCOMPROMISED ~ "Immunocompromised",
+          SOFA_total ~ "SOFA score",
+          APACHE_total ~ "APACHE II score",
+          TSS_total ~ "Tetanus severity score"),
+        statistic = list(
+          all_continuous() ~ "{median} ({p25} - {p75})",
+          all_categorical() ~ "{n}/{N} ({p}%)"), 
+        digits = list(all_continuous() ~ 1), 
+        missing = "no")
+         }
+    ```
+
+9.  Summary the characteristics of target population
+
+```{{r}}
+# Summary patient characteristics of IT-ITT
+colnames(IT_ITT)
+IT_ITT$IT_intervention <- as.factor(IT_ITT$IT_intervention)
+baseline_IT_ITT <- baseline_table(IT_ITT, intervention = "IT_intervention") %>% 
+  modify_caption("**Table 1. Baseline characteristics of Intrathecal intent-to-treat population**")
+baseline_IT_ITT
+
+# Summary patient characteristics of IM-ITT
+IM_ITT$IM_intervention <- as.factor(IM_ITT$IM_intervention)
+baseline_IM_ITT <- baseline_table(IM_ITT, intervention = "IM_intervention") %>% 
+  modify_caption("**Table 2. Baseline characteristics of Intramuscal intent-to-treat population**")
+baseline_IM_ITT
+
+# Summary patient characteristics of IT_PP
+baseline_IT_PP <- baseline_table(IT_PP, intervention = "IT_intervention") %>% 
+  modify_caption("**Table 3. Baseline characteristics of Intrathecal per-protocol population**")
+baseline_IT_PP
+
+# Summary patient characteristics of IM_PP
+baseline_IM_PP <- baseline_table(IT_PP, intervention = "IM_intervention") %>% 
+  modify_caption("**Table 4. Baseline characteristics of Intramuscal per-protocol population**")
+baseline_IM_PP
+
+```
+
+10. Create baseline table of 03TS paper published
+
+    ```{r}
+    paper_table <-  function (data, intervention, header) { data %>% 
+      tbl_summary(
+        by = intervention,
+        include = c(AGE,SEX,BMI, TIMETOADM, INCUBATIONPERIOD, INCUPERIODONSET, ABLETTSCORE),
+        label = list(
+          SEX ~ "Sex", 
+          AGE ~ "Age (years)", 
+          BMI ~ "Body mass index (kg/m²)", 
+          TIMETOADM ~ "Duration of illness (days)", 
+          INCUBATIONPERIOD ~ "Incubation period (days)", 
+          INCUPERIODONSET ~ "Period of onset (hours)", 
+          ABLETTSCORE ~ "Ablett Score"),
+        statistic = list(
+          all_continuous() ~ "{median} ({p25} - {p75})",
+          all_categorical() ~ "{n}/{N} ({p}%)"), 
+        digits = list(all_continuous() ~ 1), 
+        missing = "no") %>%
+        modify_spanning_header(all_stat_cols() ~ paste0("**", header, "**")) %>% 
+        return(.)
+          }
+
+    IT_table <- paper_table(IT_ITT, "IT_intervention", "Intrathecal treatment")
+    IT_table
+    IM_table <- paper_table(IM_ITT, "IM_intervention", "Intramuscal treatment")
+    IM_table
+
+    #merge 2 table into 1 table
+    tbl_merge <- tbl_merge(
+      tbls = list(IT_table, IM_table),
+      tab_spanner = c("**Intrathecal Treatment**", "**Intramuscular treatment**")) %>% 
+      modify_caption("**Table 1. Baseline Characteristics of the intent-to-treat Population**")
+    tbl_merge
+
+    ```
+
+11. Prepare the data for summary the outcome
+
+```{{r}}
+
+VENT <- read_excel(file_path,  sheet = "VENT") %>% 
+   filter(!str_detect(SUBJID, "^P0[1-5]"))
+joined_data_vent <- left_join(joined_data, VENT, by ="SUBJID")
+
+MV_before_IM <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IM")
+MV_before_IT <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IT")
+IT_ITT_vent <- joined_data_vent %>% filter(!is.na(RANDTC)) %>% 
+  filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
+  filter(!USUBJID.x %in% MV_before_IT$USUBJID)
+
+IM_ITT_vent <- joined_data_vent %>% filter(PREHTIG == "no") %>% 
+  filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
+  filter(!USUBJID.x %in% MV_before_IM$USUBJID) 
+
+IT_PP_vent <- IT_ITT_vent %>% filter(!USUBJID.x %in% exclude_IT_PP$USUBJID)
+IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
+
+```
+
+12. Primary outcome, reqirement for MV
+
+    ```{r}
+    tbl_vent <- function(data, intervention, header) { data %>% 
+      mutate(VENSTART = factor(VENSTART, levels= c("Y","N"), labels = c("MV", "No MV"))) %>% 
+      tbl_cross(
+       row = !!sym(intervention),
+       col = VENSTART,
+       percent = "row",
+       missing = "no") %>% 
+      add_p() %>% 
+      modify_spanning_header(starts_with("stat_") ~ "**Intention-to-treat population**") %>% 
+      modify_caption(paste0("**", header, "**"))
+      }
+
+       
+      tbl_IT_ITT_vent <- tbl_vent(IT_ITT_vent,  "IT_intervention" ,"Intrathecal intervention")
+      tbl_IT_ITT_vent
+      
+      tbl_IM_ITT_vent <- tbl_vent(IM_ITT_vent, "IM_intervention", "Intramuscal intervention")
+      tbl_IM_ITT_vent
+      
+      tbl_vent_PP <- function(data, intervention, header) { data %>% 
+      mutate(VENSTART = factor(VENSTART, levels= c("Y","N"), labels = c("MV", "No MV"))) %>% 
+      tbl_cross(
+       row = !!sym(intervention),
+       col = VENSTART,
+       percent = "row",
+       missing = "no") %>% 
+      add_p() %>% 
+      modify_spanning_header(starts_with("stat_") ~ "**Per-protocol population**") %>% 
+      modify_caption(paste0("**", header, "**"))
+      }
+      
+      tbl_IT_PP_vent <- tbl_vent_PP(IT_PP_vent, "IT_intervention", "intrathecal intervention")
+      tbl_IT_PP_vent
+      tbl_IM_PP_vent <- tbl_vent_PP(IM_PP_vent, "IM_intervention", "intrathecal intervention")
+      tbl_IM_PP_vent
+
+      table_stacked1 <- tbl_stack(
+      tbls = list(tbl_IT_ITT_vent, tbl_IM_ITT_vent))
+      table_stacked2 <- tbl_stack(
+      tbls = list(tbl_IT_PP_vent, tbl_IM_PP_vent))
+      table_stacked <- tbl_stack(tbls = list(table_stacked1, table_stacked2), group_header = c("Intention-to-Treat Population", "Per-Protocol Population")) %>% 
+      modify_spanning_header(all_stat_cols() ~ "**Primary outcome, reqyirement for MV**")
+      table_stacked
+      
+    ```
+
+13.  Summary of adverse event
+
+    ```{r}
+      # Summary Adverse Events (AE)
+      AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
+      AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
+      SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
+      
+      # add treatment arm into AE sheet data
+
+     AE <- AE %>% 
+       filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
+       filter(!USUBJID %in% withdrawal$USUBJID) %>% 
+       filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
+      left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
+    print(AE)
+
+    #Summary AE for IT_ITT population
+    AE_summary <- AE %>% 
+      group_by(AESER, IT_intervention) %>% 
+      summarise(n=n(), .groups= "drop") %>% 
+      mutate(percentage = n/sum(n)*100, 1) %>% 
+      pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
+      
+    print(AE_summary)
+    ```
