@@ -9,7 +9,6 @@ author: thanhntl
 
 ```{r}
 library(tidyverse)
-install.packages(c("gtsummary", "broom.helpers"))
 library(gtsummary)
 library(readxl)
 library(dplyr)
@@ -578,29 +577,29 @@ IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
       
     ```
 
-13.  Summary of adverse event
+13. Summary of adverse event
 
-    ```{r}
-      # Summary Adverse Events (AE)
-      AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
-      AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
-      SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
-      
-      # add treatment arm into AE sheet data
+```{{r}}
+  # Summary Adverse Events (AE)
+  AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
+  AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
+  SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
+  
+  # add treatment arm into AE sheet data
 
-     AE <- AE %>% 
-       filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
-       filter(!USUBJID %in% withdrawal$USUBJID) %>% 
-       filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
-      left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
-    print(AE)
+ AE <- AE %>% 
+   filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
+   filter(!USUBJID %in% withdrawal$USUBJID) %>% 
+   filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
+  left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
+print(AE)
 
-    #Summary AE for IT_ITT population
-    AE_summary <- AE %>% 
-      group_by(AESER, IT_intervention) %>% 
-      summarise(n=n(), .groups= "drop") %>% 
-      mutate(percentage = n/sum(n)*100, 1) %>% 
-      pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
-      
-    print(AE_summary)
-    ```
+#Summary AE for IT_ITT population
+AE_summary <- AE %>% 
+  group_by(AESER, IT_intervention) %>% 
+  summarise(n=n(), .groups= "drop") %>% 
+  mutate(percentage = n/sum(n)*100, 1) %>% 
+  pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
+  
+print(AE_summary)
+```
