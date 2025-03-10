@@ -1,6 +1,6 @@
 ---
 title: "exercise capstone"
-format: html
+format: docx
 editor: visual
 author: thanhntl
 ---
@@ -72,7 +72,8 @@ joined_data <- ENR %>%
   mutate(FIO2 = as.numeric(as.character(FIO2)),
          BILI = as.numeric(as.character(BILI)))
 
-colnames(df)[colnames(df) == "NA"] <- "SODIUM"
+colnames(joined_data)[colnames(joined_data) == "NA"] <- "SODIUM"
+
 
 ```
 
@@ -441,32 +442,37 @@ df <- df %>%
 
 9.  Summary the characteristics of target population
 
-```{{r}}
-# Summary patient characteristics of IT-ITT
-colnames(IT_ITT)
-IT_ITT$IT_intervention <- as.factor(IT_ITT$IT_intervention)
-baseline_IT_ITT <- baseline_table(IT_ITT, intervention = "IT_intervention") %>% 
-  modify_caption("**Table 1. Baseline characteristics of Intrathecal intent-to-treat population**")
-baseline_IT_ITT
+    ```{r}
 
-# Summary patient characteristics of IM-ITT
-IM_ITT$IM_intervention <- as.factor(IM_ITT$IM_intervention)
-baseline_IM_ITT <- baseline_table(IM_ITT, intervention = "IM_intervention") %>% 
-  modify_caption("**Table 2. Baseline characteristics of Intramuscal intent-to-treat population**")
-baseline_IM_ITT
+    # Summary patient characteristics of IT-ITT
+    colnames(IT_ITT)
+    IT_ITT$IT_intervention <- as.factor(IT_ITT$IT_intervention)
+    baseline_IT_ITT <- baseline_table(IT_ITT, intervention = "IT_intervention") %>% 
+      modify_caption("**Table 1. Baseline characteristics of Intrathecal intent-to-treat population**")
+    baseline_IT_ITT
 
-# Summary patient characteristics of IT_PP
-baseline_IT_PP <- baseline_table(IT_PP, intervention = "IT_intervention") %>% 
-  modify_caption("**Table 3. Baseline characteristics of Intrathecal per-protocol population**")
-baseline_IT_PP
+    # Summary patient characteristics of IM-ITT
+    IM_ITT$IM_intervention <- as.factor(IM_ITT$IM_intervention)
+    baseline_IM_ITT <- baseline_table(IM_ITT, intervention = "IM_intervention") %>% 
+      modify_caption("**Table 2. Baseline characteristics of Intramuscal intent-to-treat population**")
+    baseline_IM_ITT
 
-# Summary patient characteristics of IM_PP
-baseline_IM_PP <- baseline_table(IT_PP, intervention = "IM_intervention") %>% 
-  modify_caption("**Table 4. Baseline characteristics of Intramuscal per-protocol population**")
-baseline_IM_PP
+    # Summary patient characteristics of IT_PP
+    baseline_IT_PP <- baseline_table(IT_PP, intervention = "IT_intervention") %>% 
+      modify_caption("**Table 3. Baseline characteristics of Intrathecal per-protocol population**")
+    baseline_IT_PP
 
+    # Summary patient characteristics of IM_PP
+    baseline_IM_PP <- baseline_table(IT_PP, intervention = "IM_intervention") %>% 
+      modify_caption("**Table 4. Baseline characteristics of Intramuscal per-protocol population**")
+    baseline_IM_PP
+
+
+    ```
+
+```{=html}
+<!-- -->
 ```
-
 10. Create baseline table of 03TS paper published
 
     ```{r}
@@ -507,31 +513,34 @@ baseline_IM_PP
 
 11. Prepare the data for summary the outcome
 
-```{{r}}
+    ```{r}
 
-VENT <- read_excel(file_path,  sheet = "VENT") %>% 
-   filter(!str_detect(SUBJID, "^P0[1-5]"))
-joined_data_vent <- left_join(joined_data, VENT, by ="SUBJID")
+    VENT <- read_excel(file_path,  sheet = "VENT") %>% 
+       filter(!str_detect(SUBJID, "^P0[1-5]"))
+    joined_data_vent <- left_join(joined_data, VENT, by ="SUBJID")
 
-MV_before_IM <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IM")
-MV_before_IT <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IT")
-IT_ITT_vent <- joined_data_vent %>% filter(!is.na(RANDTC)) %>% 
-  filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
-  filter(!USUBJID.x %in% MV_before_IT$USUBJID)
+    MV_before_IM <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IM")
+    MV_before_IT <- read_excel("data/Protocol violations, exclusions, withdrawals.xlsx", sheet = "MV before IT")
+    IT_ITT_vent <- joined_data_vent %>% filter(!is.na(RANDTC)) %>% 
+      filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
+      filter(!USUBJID.x %in% MV_before_IT$USUBJID)
 
-IM_ITT_vent <- joined_data_vent %>% filter(PREHTIG == "no") %>% 
-  filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
-  filter(!USUBJID.x %in% MV_before_IM$USUBJID) 
+    IM_ITT_vent <- joined_data_vent %>% filter(PREHTIG == "no") %>% 
+      filter(!USUBJID.x %in% withdrawal$USUBJID) %>% 
+      filter(!USUBJID.x %in% MV_before_IM$USUBJID) 
 
-IT_PP_vent <- IT_ITT_vent %>% filter(!USUBJID.x %in% exclude_IT_PP$USUBJID)
-IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
+    IT_PP_vent <- IT_ITT_vent %>% filter(!USUBJID.x %in% exclude_IT_PP$USUBJID)
+    IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
 
+    ```
+
+```{=html}
+<!-- -->
 ```
-
 12. Primary outcome, reqirement for MV
 
     ```{r}
-    tbl_vent <- function(data, intervention, header) { data %>% 
+    tbl_vent <- function(data, intervention) { data %>% 
       mutate(VENSTART = factor(VENSTART, levels= c("Y","N"), labels = c("MV", "No MV"))) %>% 
       tbl_cross(
        row = !!sym(intervention),
@@ -539,18 +548,17 @@ IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
        percent = "row",
        missing = "no") %>% 
       add_p() %>% 
-      modify_spanning_header(starts_with("stat_") ~ "**Intention-to-treat population**") %>% 
-      modify_caption(paste0("**", header, "**"))
+      modify_spanning_header(starts_with("stat_") ~ "**Intention-to-treat population**")
       }
 
        
-      tbl_IT_ITT_vent <- tbl_vent(IT_ITT_vent,  "IT_intervention" ,"Intrathecal intervention")
+      tbl_IT_ITT_vent <- tbl_vent(IT_ITT_vent,  "IT_intervention")
       tbl_IT_ITT_vent
       
-      tbl_IM_ITT_vent <- tbl_vent(IM_ITT_vent, "IM_intervention", "Intramuscal intervention")
+      tbl_IM_ITT_vent <- tbl_vent(IM_ITT_vent, "IM_intervention")
       tbl_IM_ITT_vent
       
-      tbl_vent_PP <- function(data, intervention, header) { data %>% 
+      tbl_vent_PP <- function(data, intervention) { data %>% 
       mutate(VENSTART = factor(VENSTART, levels= c("Y","N"), labels = c("MV", "No MV"))) %>% 
       tbl_cross(
        row = !!sym(intervention),
@@ -558,13 +566,12 @@ IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
        percent = "row",
        missing = "no") %>% 
       add_p() %>% 
-      modify_spanning_header(starts_with("stat_") ~ "**Per-protocol population**") %>% 
-      modify_caption(paste0("**", header, "**"))
+      modify_spanning_header(starts_with("stat_") ~ "**Per-protocol population**")
       }
       
-      tbl_IT_PP_vent <- tbl_vent_PP(IT_PP_vent, "IT_intervention", "intrathecal intervention")
+      tbl_IT_PP_vent <- tbl_vent_PP(IT_PP_vent, "IT_intervention")
       tbl_IT_PP_vent
-      tbl_IM_PP_vent <- tbl_vent_PP(IM_PP_vent, "IM_intervention", "intrathecal intervention")
+      tbl_IM_PP_vent <- tbl_vent_PP(IM_PP_vent, "IM_intervention")
       tbl_IM_PP_vent
 
       table_stacked1 <- tbl_stack(
@@ -579,27 +586,26 @@ IM_PP_vent <- IM_ITT_vent %>% filter(!USUBJID.x %in% exclude_IM_PP$USUBJID)
 
 13. Summary of adverse event
 
-```{{r}}
-  # Summary Adverse Events (AE)
-  AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
-  AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
-  SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
-  
-  # add treatment arm into AE sheet data
+    ```{r}
+    # Summary Adverse Events (AE)
+      AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
+      AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
+      SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
+      
+      # add treatment arm into AE sheet data
 
- AE <- AE %>% 
-   filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
-   filter(!USUBJID %in% withdrawal$USUBJID) %>% 
-   filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
-  left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
-print(AE)
+     AE <- AE %>% 
+       filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
+       filter(!USUBJID %in% withdrawal$USUBJID) %>% 
+       filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
+      left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
+    print(AE)
 
-#Summary AE for IT_ITT population
-AE_summary <- AE %>% 
-  group_by(AESER, IT_intervention) %>% 
-  summarise(n=n(), .groups= "drop") %>% 
-  mutate(percentage = n/sum(n)*100, 1) %>% 
-  pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
-  
-print(AE_summary)
-```
+    #Summary AE for IT_ITT population
+    AE_summary <- AE %>% 
+      group_by(AESER, IT_intervention) %>% 
+      summarise(n=n(), .groups= "drop") %>% 
+      mutate(percentage = n/sum(n)*100, 1) %>% 
+      pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
+
+    ```
