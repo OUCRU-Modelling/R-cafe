@@ -5,7 +5,7 @@ editor: visual
 author: thanhntl
 ---
 
-1.  Load packages necessay for data analysis
+1.  Load packages necessary for data analysis
 
 ```{r}
 library(tidyverse)
@@ -406,6 +406,7 @@ df <- df %>%
           EMERGENCYSURGERY ~ "Emergency surgery",
           TIMETOADM ~ "Duration of illness (days)", 
           INCUBATIONPERIOD ~ "Incubation period (days)", 
+          INCUPERIODONSET ~ "Period of onset (days)",
           WOUND ~ "Wound", 
           DIFFBREATH ~ " Difficult to breath",
           ASA ~ "ASA score",
@@ -470,9 +471,8 @@ df <- df %>%
 
     ```
 
-```{=html}
 <!-- -->
-```
+
 10. Create baseline table of 03TS paper published
 
     ```{r}
@@ -534,10 +534,9 @@ df <- df %>%
 
     ```
 
-```{=html}
 <!-- -->
-```
-12. Primary outcome, reqirement for MV
+
+12. Primary outcome, requirement for MV
 
     ```{r}
     tbl_vent <- function(data, intervention) { data %>% 
@@ -588,24 +587,99 @@ df <- df %>%
 
     ```{r}
     # Summary Adverse Events (AE)
-      AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "ALL AEs")
-      AE_rel <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "pos related and related")
+      AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridAE")
       SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
       
-      # add treatment arm into AE sheet data
+      # filter events that does not belong to AE
 
      AE <- AE %>% 
        filter(!str_detect(USUBJID, "^P0[1-5]")) %>% 
        filter(!USUBJID %in% withdrawal$USUBJID) %>% 
-       filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD")) %>% 
-      left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
-    print(AE)
+       filter(!CTCAENAME %in% c("Nasogastric tube", "Urinary Catheter", "Tracheostomy", "Mechanical ventilation", "ANSD"))
+     
+         # Create the event table for IT_ITT
+      AE_IT_ITT <- AE %>% left_join(select(IT_ITT, USUBJID.x, IT_intervention), by = c("USUBJID" = "USUBJID.x"))
+      
+         # AE summary of Intrathecal treatment arm of IT_ITT
+      AE_IT_ITT_Intrathecal <- AE_IT_ITT %>% 
+        filter(IT_intervention == "Intrathecal treatment") %>% 
+        count(CTCAENAME, name = "Number of events") %>% 
+        left_join(
+          AE_IT_ITT %>% 
+            filter(IT_intervention == "Intrathecal treatment") %>% 
+            distinct(CTCAENAME, USUBJID) %>% #loại bỏ các dòng trùng lặp, giữ lại các dòng có giá trị duy nhất vì 1 BN có nhiều tác dụng phụ lặp lại
+            count(CTCAENAME, name ="Number of patients"),
+          by = "CTCAENAME") %>% 
+        arrange(desc(`Number of events`)) %>% # Sắp xếp giảm dần theo số lần xuất hiện
+        mutate(CTCAENAME = as.character(CTCAENAME))
+      
+        # AE summmary of Sham procedure arm of IT_ITT
+      AE_IT_ITT_Sham <- AE_IT_ITT %>% 
+        filter(IT_intervention == "Sham procedure") %>% 
+        count(CTCAENAME, name = "Number of events") %>% 
+        left_join(
+          AE_IT_ITT %>% 
+            filter(IT_intervention == "Sham procedure") %>% 
+            distinct(CTCAENAME, USUBJID) %>% 
+            count(CTCAENAME, name ="Number of patients"),
+          by = "CTCAENAME") %>% 
+        arrange(desc(`Number of events`)) %>% 
+        mutate(CTCAENAME = as.character(CTCAENAME))
+      
+       # Count total unique patient:
+      
+      total_IT_patients <- AE_IT_ITT %>%
+      filter(IT_intervention == "Intrathecal treatment") %>%
+      distinct(USUBJID) %>%
+      nrow()  # Count unique patients with any adverse event
 
-    #Summary AE for IT_ITT population
-    AE_summary <- AE %>% 
-      group_by(AESER, IT_intervention) %>% 
-      summarise(n=n(), .groups= "drop") %>% 
-      mutate(percentage = n/sum(n)*100, 1) %>% 
-      pivot_wider(names_from = IT_intervention, values_from = c(n, percentage))
+       
+      total_Sham_patients <- AE_IT_ITT %>%
+      filter(IT_intervention == "Sham procedure") %>%
+      distinct(USUBJID) %>%
+      nrow()  # Count unique patients with any adverse event
+      
+      #create the total row for both arm
 
+      Total_IT_row <- tibble(
+        CTCAENAME = "Total",
+        'Number of events' = sum(AE_IT_ITT_Intrathecal$`Number of events`, na.rm = TRUE),
+        'Number of patients' = total_IT_patients)
+      
+       Total_Sham_row <- tibble( #create the row for the AE table of IT_ITT
+        CTCAENAME = "Total",
+        'Number of events' = sum(AE_IT_ITT_Sham$`Number of events`, na.rm = TRUE),
+        'Number of patients' = total_Sham_patients)
+       
+       #count total number of patient for both arm
+       Total_IT_patient <- IT_ITT %>% 
+         group_by(IT_intervention) %>% 
+         summarise(total = n_distinct(USUBJID.x), .groups = "drop")
+     
+       #combine total row to the table
+      AE_IT_ITT_Intrathecal <-  bind_rows(AE_IT_ITT_Intrathecal, Total_IT_row) %>% 
+        mutate(`Percentage (%)` = sprintf("%d (%.1f%%)", `Number of patients`, `Number of patients`/pull(Total_IT_patient[Total_IT_patient$IT_intervention == "Intrathecal treatment","total"]) *100))
+
+    
+      AE_IT_ITT_Sham <-  bind_rows(AE_IT_ITT_Sham, Total_Sham_row) %>%
+          mutate(`Percentage (%)` = sprintf("%d (%.1f%%)", `Number of patients`, `Number of patients`/pull(Total_IT_patient[Total_IT_patient$IT_intervention == "Sham procedure","total"])*100))
+      
+      # combine AE table of both arm into a table
+      AE_IT_ITT_table <- full_join(AE_IT_ITT_Intrathecal, AE_IT_ITT_Sham, by = "CTCAENAME", suffix = c("(Intrathecal)", "(Sham)")) %>% 
+      mutate(across(where(is.numeric) & (contains("Number of events") | contains("Number of patients")), ~ replace_na(., 0))) %>% 
+        rename("Total patients Intrathecal" = "Percentage (%)(Intrathecal)",
+               "Total patients Sham (%)" = "Percentage (%)(Sham)",
+               "Number of events (Intrathecal)" = "Number of events(Intrathecal)",
+               "Number of events (Sham)" = "Number of events(Sham)" ) %>% 
+       select(-"Number of patients(Intrathecal)") %>% 
+        select(-"Number of patients(Sham)") %>% 
+        arrange(if_else(CTCAENAME == "Total", 0, 1))
+      
+      # add p value
+      
+      AE_IT_ITT_table <- AE_IT_ITT_table %>% 
+        rowwise() %>% #tinh theo tung dong
+      mutate(`p value` = compute_p_value("Number of patients (Intrathecal)", "Number of patients (Sham)")
+        
+   
     ```
