@@ -13,6 +13,7 @@ library(gtsummary)
 library(readxl)
 library(dplyr)
 library(janitor)
+library(gt)
 
 ```
 
@@ -586,7 +587,7 @@ df <- df %>%
 13. Summary of adverse event
 
     ```{r}
-    # Summary Adverse Events (AE)
+# Summary Adverse Events (AE)
       AE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridAE")
       SAE <- read_excel("data/AE.SAE DATA SHEET.xls", sheet = "S_AE_GridSAE")
       
@@ -667,19 +668,71 @@ df <- df %>%
       # combine AE table of both arm into a table
       AE_IT_ITT_table <- full_join(AE_IT_ITT_Intrathecal, AE_IT_ITT_Sham, by = "CTCAENAME", suffix = c("(Intrathecal)", "(Sham)")) %>% 
       mutate(across(where(is.numeric) & (contains("Number of events") | contains("Number of patients")), ~ replace_na(., 0))) %>% 
-        rename("Total patients Intrathecal" = "Percentage (%)(Intrathecal)",
+      mutate(across(contains("Percentage (%)"), ~ replace_na(., "0 (0.0%)"))) %>% 
+        rename("Total patients Intrathecal (%)" = "Percentage (%)(Intrathecal)",
                "Total patients Sham (%)" = "Percentage (%)(Sham)",
                "Number of events (Intrathecal)" = "Number of events(Intrathecal)",
                "Number of events (Sham)" = "Number of events(Sham)" ) %>% 
-       select(-"Number of patients(Intrathecal)") %>% 
-        select(-"Number of patients(Sham)") %>% 
-        arrange(if_else(CTCAENAME == "Total", 0, 1))
+               arrange(if_else(CTCAENAME == "Total", 0, 1))
+      
       
       # add p value
+      total_patients_intrathecal <-pull(Total_IT_patient[1,2])
+      print(total_patients_intrathecal)
+      total_patients_sham <-pull(Total_IT_patient[2,2])
+      print(total_patients_sham)
       
       AE_IT_ITT_table <- AE_IT_ITT_table %>% 
         rowwise() %>% #tinh theo tung dong
-      mutate(`p value` = compute_p_value("Number of patients (Intrathecal)", "Number of patients (Sham)")
-        
+         mutate(
+          fisher_p_value = round(fisher.test(
+          matrix(
+            c(`Number of patients(Intrathecal)`, total_patients_intrathecal - `Number of patients(Intrathecal)`,`Number of patients(Sham)`,total_patients_sham - `Number of patients(Sham)`),
+        nrow = 2, byrow = TRUE))$p.value, digits = 3)) %>% 
+        ungroup() 
+      
+      # modify the AE table
    
+AE_IT_ITT_table_final <- AE_IT_ITT_table %>% 
+  select(CTCAENAME, 
+         `Number of events (Intrathecal)`, 
+         `Total patients Intrathecal (%)`, 
+         `Number of events (Sham)`, 
+         `Total patients Sham (%)`, 
+         fisher_p_value) %>% 
+  gt() %>% 
+  tab_header(title = md("**Comparison of Adverse Events by Arm**")) %>%
+  cols_label(
+    CTCAENAME = md("**Type of adverse event**"),
+    `Number of events (Intrathecal)` = md("**n episode**"),
+    `Total patients Intrathecal (%)` = md("**n patient**"),
+    `Number of events (Sham)` = md("**n episode**"),
+    `Total patients Sham (%)` = md("**n patient**"),
+    `fisher_p_value` = md("**p value**")
+  ) %>%
+  tab_spanner(
+    label = md(sprintf("**Intrathecal treatment (N=%d)**", total_patients_intrathecal)),
+    columns = c(`Number of events (Intrathecal)`, `Total patients Intrathecal (%)`)
+  ) %>%
+  tab_spanner(
+    label = md(sprintf("**Sham procedure (N=%d)**", total_patients_sham)),
+    columns = c(`Number of events (Sham)`, `Total patients Sham (%)`)
+  ) %>%
+  fmt_number(columns = fisher_p_value, decimals = 3) %>%  # Làm tròn giá trị p-value
+  tab_options(table.font.size = "medium") %>%
+  tab_style(
+    style = list(cell_text(weight = "bold")),
+    locations = cells_body(rows = CTCAENAME == "Total")  # Bold dòng "Total"
+  ) %>% 
+  tab_style(
+    style = list(cell_text(weight = "bold", color = "red")),  
+    locations = cells_body(rows = fisher_p_value < 0.05)  # Tô đỏ và làm đậm dòng có p < 0.05
+  )
+AE_IT_ITT_table_final
+```
+
+15. Plot of total pipecuronium dose
+    ```{r}
+
+
     ```
