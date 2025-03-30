@@ -731,8 +731,34 @@ AE_IT_ITT_table_final <- AE_IT_ITT_table %>%
 AE_IT_ITT_table_final
 ```
 
-15. Plot of total pipecuronium dose
+15. Convert the long table to wide table, count total dosage of drugs and usage length
     ```{r}
+daily_daily<- read_excel(file_path,  sheet = "DAILY_DAILY")
+drug_wide <- daily_daily %>%
+  pivot_wider(id_cols = USUBJID, names_from = DAILY_DAILY_SEQ, values_from = c("MAXTEMP","MIDAZOLAM", "DIAZEPAMIM",	"DIAZEPAMORAL", "PIPECURONIUM"))
 
+drug_summary <- function(data, drug) {
+  data %>% 
+    mutate(!!sym(paste0(drug, "_total")) := rowSums(select(., starts_with(drug)), na.rm = TRUE)) %>% 
+    mutate(!!sym(paste0(drug, "_length")) := rowSums(!is.na(select(., starts_with(drug))), na.rm = TRUE))
+  } #tên cột động
+
+drug_wide_total <- drug_wide %>%   
+  drug_summary("PIPECURONIUM") %>% 
+  drug_summary("MIDAZOLAM") %>% 
+  drug_summary("DIAZEPAMIM") %>% 
+  drug_summary("DIAZEPAMORAL") %>% 
+  mutate(benzodiazepines_total = DIAZEPAMIM_total + DIAZEPAMORAL_total + (4.17 * MIDAZOLAM_total)) %>% 
+  mutate(benzodiazepines_length = pmax(MIDAZOLAM_length, DIAZEPAMIM_length, DIAZEPAMORAL_length, na.rm = TRUE))
 
     ```
+
+16. Create the data frame for each population
+
+```{r}
+drug_left_join <- function(drug, population, ID1, ID2) {df1 %>% 
+    left_join(population, by = c("ID1" = "ID2"))}
+drug_IT_ITT
+
+```
+
