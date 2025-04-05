@@ -365,16 +365,7 @@ df <- df %>%
       data %>% 
       tbl_summary(
         by = intervention,
-        include = c(AGE,SEX,BMI, SOURCE, ICUDAYS, OUTCOME,HYPERTENSION,MYOCARDIALINFART, 
-                    ANGINA,	PERIVASCULAR,	CHRONICPUL,	CONNECTIVETISSUE,	MILDLIVER, HEMIPLEGIA,	
-                    DIAWITHCHRONIC,	SEVERELIVER,	AIDS,	CARDIACFAILUREIII,	CARDIACFAILUREIV,	
-                    CEREBROVASCULAR,	SEVERERESP,	PEPTICULCER,	DIABETES,	SEVEREKIDNEY,	
-                    MALIGNANCY,	TUMOUR,	DEMENTIA, ELECTIVESURGERY,EMERGENCYSURGERY,
-                    TIMETOADM, INCUBATIONPERIOD, INCUPERIODONSET, WOUND, DIFFBREATH,
-                    MAXTEMP, GCS,	RESP,	FIO2,	SPO2,	PAO2,	PH,	PLT,	WBC,	HCT,	
-                    MAXHR,	MINHR,	MAXSBP,	WORSTSBP,	WORSTDBP,	VASO, 
-                    BILI,	SODIUM,	K,	CREAT,	URINEOUTPUT,	RENALFAILURE,	IMMUNOCOMPROMISED,
-                    ASA, ABLETTSCORE, SOFA_total, TSS_total, APACHE_total),
+        include = c(AGE,SEX,BMI, SOURCE, ICUDAYS, OUTCOME,HYPERTENSION,MYOCARDIALINFART, ANGINA,	PERIVASCULAR,	CHRONICPUL,	CONNECTIVETISSUE,	MILDLIVER, HEMIPLEGIA,DIAWITHCHRONIC,	SEVERELIVER,	AIDS,	CARDIACFAILUREIII,	CARDIACFAILUREIV, CEREBROVASCULAR,	SEVERERESP,	PEPTICULCER,	DIABETES,	SEVEREKIDNEY, MALIGNANCY,	TUMOUR,	DEMENTIA, ELECTIVESURGERY,EMERGENCYSURGERY,TIMETOADM, INCUBATIONPERIOD, INCUPERIODONSET, WOUND, DIFFBREATH,MAXTEMP, GCS,	RESP,	FIO2,	SPO2,	PAO2,	PH,	PLT,	WBC,	HCT, MAXHR,	MINHR,	MAXSBP,	WORSTSBP,	WORSTDBP,	VASO,        BILI,	SODIUM,	K,	CREAT,	URINEOUTPUT,	RENALFAILURE,	IMMUNOCOMPROMISED, ASA, ABLETTSCORE, SOFA_total, TSS_total, APACHE_total),
         type = list(FIO2 ~ "continuous", BILI ~ "continuous", SOFA_total~"continuous"),
         label = list(
           SEX ~ "Sex", 
@@ -749,16 +740,51 @@ drug_wide_total <- drug_wide %>%
   drug_summary("DIAZEPAMIM") %>% 
   drug_summary("DIAZEPAMORAL") %>% 
   mutate(benzodiazepines_total = DIAZEPAMIM_total + DIAZEPAMORAL_total + (4.17 * MIDAZOLAM_total)) %>% 
-  mutate(benzodiazepines_length = pmax(MIDAZOLAM_length, DIAZEPAMIM_length, DIAZEPAMORAL_length, na.rm = TRUE))
+  mutate(benzodiazepines_length = pmax(MIDAZOLAM_length, DIAZEPAMIM_length, DIAZEPAMORAL_length, na.rm = TRUE)) %>% 
+  mutate(benzodiazepines_total_his = sqrt(benzodiazepines_total)) %>% 
+  mutate(PIPECURONIUM_total_his = sqrt(PIPECURONIUM_total))
 
     ```
 
 16. Create the data frame for each population
-
 ```{r}
-drug_left_join <- function(drug, population, ID1, ID2) {df1 %>% 
-    left_join(population, by = c("ID1" = "ID2"))}
-drug_IT_ITT
+drug_left_join <- function(population, drug, ID1, ID2) {population %>% 
+    left_join(drug, by = setNames(ID2, ID1))}
+drug_IT_ITT <- drug_left_join(IT_ITT_vent, drug_wide_total, "USUBJID.x", "USUBJID")
+drug_IM_ITT <- drug_left_join(IM_ITT_vent, drug_wide_total, "USUBJID.x", "USUBJID")
+drug_IT_PP <- drug_left_join(IT_PP_vent, drug_wide_total, "USUBJID.x", "USUBJID")
+drug_IM_PP <- drug_left_join(IM_PP_vent, drug_wide_total, "USUBJID.x", "USUBJID")
 
+
+pipecuronium_IT_ITT <- drug_IT_ITT %>% 
+  select(USUBJID.x, PIPECURONIUM_total_his, PIPECURONIUM_length, VENSTART, IT_intervention) %>% 
+  filter(VENSTART == "Y")
+```
+
+
+17. Histogram plot
+```{r}
+#make simple linear regression model
+pipecuronium_fit_IT_ITT <- lm(PIPECURONIUM_total_his~IT_intervention, data=pipecuronium_IT_ITT)
+
+total_pipecuronium_IT_ITT <- expand.grid(IT_intervention = unique(pipecuronium_IT_ITT$IT_intervention))
+total_pipecuronium_IT_ITT <- cbind(predict(pipecuronium_fit_IT_ITT, newdata=total_pipecuronium_IT_ITT, interval="confidence"), total_pipecuronium_IT_ITT)
+total_pipecuronium_IT_ITT$height <- c(0.5,1)
+
+total_pipecuronium_plot_IT_ITT <- ggplot(pipecuronium_IT_ITT)+
+  geom_histogram(aes(PIPECURONIUM_total_his,#tổng liều chia theo nhóm điều trị
+                     group=IT_intervention,
+                     fill=IT_intervention), # tô màu theo nhóm điều trị
+                     position="identity", # các cột histogram sẽ chồng lên nhau.
+                     alpha=0.4)+ #độ trong suốt
+  geom_point(data=total_pipecuronium_IT_ITT,
+             aes(fit,height,shape=IT_intervention)) +
+  geom_segment(data=total_pipecuronium_IT_ITT,aes(x=lwr,y=height,xend=upr,yend=height,
+                                                  linetype=IT_intervention)) +
+  scale_x_continuous("Total dose of pipecuronium",
+                     breaks=c(10,20,30,40),
+                     labels=c(10^2,20^2,30^2,40^2))+
+  theme(axis.text.x = element_text(angle = 0), legend.position = 'bottom')
+total_pipecuronium_plot_IT_ITT
 ```
 
