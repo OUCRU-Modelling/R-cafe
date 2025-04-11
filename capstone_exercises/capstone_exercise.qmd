@@ -456,7 +456,7 @@ df <- df %>%
     baseline_IT_PP
 
     # Summary patient characteristics of IM_PP
-    baseline_IM_PP <- baseline_table(IT_PP, intervention = "IM_intervention") %>% 
+    baseline_IM_PP <- baseline_table(IM_PP, intervention = "IM_intervention") %>% 
       modify_caption("**Table 4. Baseline characteristics of Intramuscal per-protocol population**")
     baseline_IM_PP
 
