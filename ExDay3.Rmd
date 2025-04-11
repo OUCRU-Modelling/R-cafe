@@ -1,0 +1,149 @@
+---
+title: "Ex day 3"
+output: html_document
+date: "2025-02-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## question 1
+anaalysis for populations
+
+```{r IT-ITT}
+library(readxl)
+library(tidyverse)
+data1 <- read_xlsx("03TS_Randlist.xlsx") %>% as.data.frame()
+exclusion <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx")
+datamain <- read_xls("2-10-2020-_03TS_V1_Data.xls")
+str(datamain)
+pilot <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx", sheet=1)
+
+datamain_nopilot <- datamain %>% filter(!USUBJID %in% pilot$USUBJID) %>% as.data.frame()
+str(datamain_nopilot)
+
+library(stringr)
+data1 <- data1 %>% mutate(pat.id=str_replace(pat.id, ".*S", "003"))
+
+data1 <- data1 %>% rename("USUBJID"="pat.id")
+
+??str_replace
+
+## Create final dataset for analysis
+datafinal <- left_join(datamain_nopilot,
+                       data1, 
+                       by="USUBJID")
+withdraw <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx", sheet="Withdrawals")
+datafinal <- datafinal %>% filter(!USUBJID %in% withdraw$USUBJID)
+
+## IT_ITT
+it_itt <- datafinal %>% as.data.frame()
+
+## IM_ITT
+exclude_im_itt <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx", sheet="IM ITT") %>% rename("USUBJID"="ID")
+im_itt <- datafinal %>% filter(!USUBJID %in% exclude_im_itt$USUBJID)
+
+## IT_PP
+it_protocol <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx", sheet="IT Per protocol")
+it_pp <- it_itt %>% filter(!USUBJID %in% it_protocol$USUBJID)
+
+## IM_PP
+im_protocol <- read_xlsx("Protocol violations, exclusions, withdrawals.xlsx", sheet="IM per protocol")
+im_pp <- im_itt %>% filter(!USUBJID %in% im_protocol$USUBJID)
+
+## IM_ALL
+im_all <- datafinal
+
+
+```
+
+## Table 1. Baseline characteristics of study populations
+
+This is 
+
+
+```{r table1, echo=FALSE}
+library(tidyverse)
+library(readxl)
+ENR <- read_xls("2-10-2020-_03TS_V1_Data.xls", sheet= "ENR") %>% filter(!USUBJID %in% pilot$USUBJID)
+ADM <- read_xls("2-10-2020-_03TS_V1_Data.xls", sheet= "ADM") %>% filter(!USUBJID %in% pilot$USUBJID)
+table1 <- ENR %>% select(USUBJID, AGE, SEX) %>%
+  left_join(ADM %>% select(USUBJID, WEIGHT, HEIGHT, HYPERTENSION, MYOCARDIALINFART, SEVERELIVER, TIMETOADM, INCUBATIONPERIOD, INCUPERIODONSET, RESP, PLT), by="USUBJID") %>% as.data.frame()
+
+library(gtsummary)
+t1 <- table1 %>% select(-USUBJID) %>%
+  tbl_summary(by=SEX,
+              missing = "no",
+              digits = list(all_continuous() ~ c(1,1),
+                            all_categorical() ~ c(1,1)),
+              statistic = list(all_continuous() ~ "{mean} ({sd})",
+                               all_categorical() ~ "{n} ({p}%)"
+              )) %>%
+  add_n() %>%
+  modify_header(label="**Variables**") %>%
+  modify_spanning_header(all_stat_cols() ~ "**Baseline**")
+  
+t1
+
+```
+
+## Table 2. Adverse Event of study population
+
+```{r AE}
+ae <- read_excel("AE.SAE DATA SHEET.xls",sheet = "S_AE_GridAE")
+
+names(ae) <- tolower(names(ae))
+
+number_ae <-
+  ae %>% 
+  filter(ctcaename!="Nasogastric tube" & ctcaename!="Tracheostomy") %>%
+  mutate(ae=ifelse(!is.na(ctcaename), "Y", "N")) %>%
+  bind_cols(
+    anyAE = select(., ae) %>% base::apply(1, FUN = function(x) any(x == 'Y'))
+    ) %>% 
+  group_by(usubjid) %>% 
+  mutate(No.anyAE=sum(anyAE))
+
+install.packages("plyr")
+library(plyr)
+
+install.packages("data.table")
+library(data.table)
+
+install.packages("reshape2")
+library(reshape2)
+
+any_ae <- number_ae %>%
+  reshape2::dcast(usubjid ~ s_ae_gridae_seq, value.var="ae") %>%
+  mutate(
+    ae = apply(., 1, FUN = function(x) any(x == 'Y'))
+  ) %>%
+  select(usubjid, ae)
+
+ae.grade <- number_ae %>%
+  dcast(usubjid ~ s_ae_gridae_seq, value.var="ctcaegrade") %>%
+  mutate(
+    GradeI = apply(., 1, FUN = function(x) any(x == 'I')),
+    GradeII = apply(., 1, FUN = function(x) any(x == 'II')),
+    GradeIII = apply(., 1, FUN = function(x) any(x == 'III')),
+    GradeIV = apply(., 1, FUN = function(x) any(x == 'IV'))
+  ) %>%
+  select(usubjid, GradeI, GradeII, GradeIII, GradeIV)
+  
+ae.all <- any_ae %>% select(usubjid, ae) %>%
+  left_join(ae.grade %>% select(usubjid, GradeI, GradeII, GradeIII, GradeIV)) %>%
+  replace(., is.na(.), FALSE)
+
+str(ae.all)
+names(table1) <- tolower(names(table1))
+ae.all1 <- ae.all %>% left_join(table1 %>% select(usubjid, r.arm))
+```
+
+ 
+
+   
+   
+
+
+
