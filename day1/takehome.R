@@ -3,7 +3,7 @@
 renv::restore()
 #Task 1
 covid_cases <- readRDS("day1/data/covid_cases.rds")
-class(covid_cases$date)
+covid_cases$date <- as.Date(covid_cases$date)
 
 ##Task 2
 #the earliest date of data report in the dataset
