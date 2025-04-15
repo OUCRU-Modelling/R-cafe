@@ -1,0 +1,26 @@
+---
+title: "Day 1 HW"
+author: "Thuyltp"
+date: "2025-04-15"
+output: html_document
+---
+```{r}
+renv::restore()
+install.packages("tidyverse")
+```
+
+```{r}
+library(tidyverse)
+```
+```{r}
+data_covid_cases <- readRDS("D:/1. OUCRU/R training course/R-cafe/day1/data/covid_cases.rds")  
+covid_cases <- data_covid_cases |> 
+  pivot_longer(
+    cols = -date,
+    names_to = "country", 
+    names_pattern = "cases_(.+)",
+    values_to = "cases"
+  )
+covid_cases
+```
+
