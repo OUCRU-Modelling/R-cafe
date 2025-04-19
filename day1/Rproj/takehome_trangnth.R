@@ -92,6 +92,6 @@ skim(covid_cases[,c("cases_chn","cases_vnm", "cases_usa","cases_sgp")])
 
 #Note: In 4 countries:
 #China and the USA: Both had significant spikes in number COVID-19 cases/day that shown by high maximum values and large SD.
-#Vietnam had remarkable low case numbers with maximum 19 cases/day).
+#Vietnam had remarkable low case numbers with maximum 19 cases/day
 #Singapore had moderate variability but generally low cases compared to countries like the USA.
 
