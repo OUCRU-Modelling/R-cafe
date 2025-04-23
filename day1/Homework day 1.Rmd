@@ -5,22 +5,87 @@ date: "2025-04-15"
 output: html_document
 ---
 ```{r}
-renv::restore()
-install.packages("tidyverse")
+renv::init()
 ```
 
+
 ```{r}
+
 library(tidyverse)
+library(skimr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
 ```
+#Task 1
 ```{r}
-data_covid_cases <- readRDS("D:/1. OUCRU/R training course/R-cafe/day1/data/covid_cases.rds")  
-covid_cases <- data_covid_cases |> 
-  pivot_longer(
-    cols = -date,
-    names_to = "country", 
-    names_pattern = "cases_(.+)",
-    values_to = "cases"
-  )
-covid_cases
+covid_cases <- readRDS("D:/1. OUCRU/R training course/R-cafe/day1/data/covid_cases.rds")  
+skim(covid_cases)
 ```
+#Task 2
+
+```{r} 
+covid_cases$date <- as.Date(covid_cases$date)
+first_report_date <- min(covid_cases$date)
+last_report_date <- max(covid_cases$date)
+
+covid_cases <- covid_cases |> 
+  mutate(
+    global_cases =rowSums(select(covid_cases, !date )),
+    percent_chn = (cases_chn / global_cases) * 100)
+
+```
+#Task 3
+
+```{r}
+compute_percent <- function(data, country_code) {
+  country_col <- paste("cases_", country_code, sep="")
+  data[[paste("percent_", country_code, sep="")]] <- (data[[country_col]] / data$global_cases) * 100
+  return(data)
+}
+
+covid_cases <- compute_percent(covid_cases, "chn")
+covid_cases <- compute_percent(covid_cases, "vnm")
+covid_cases <- compute_percent(covid_cases, "usa")
+covid_cases <- compute_percent(covid_cases, "sgp")
+
+
+print(covid_cases[, c("date", "percent_chn", "percent_vnm", "percent_usa", "percent_sgp")])
+```
+#Task 3.5
+
+```{r}
+plot_covid_cases <- function(data, country_code,country,
+                             bar_color = "cornflowerblue", line_color = "red",
+                             min_date = NULL, max_date = NULL) {
+  country_col <- paste("cases_", country_code, sep="")
+  # Create ggplot
+  p <- ggplot() +
+    # Bar chart layer
+    geom_col(aes(x = data$date, y = data[[country_col]]), fill = bar_color) +
+    
+    # Line chart layer
+    geom_line(aes(x = data$date, y = data[[country_col]]), color = line_color) +
+    
+    # Labels
+    labs(
+      y = "Cases",
+      x = "Date",
+      title = paste0("Reported Covid cases for ", country)
+    )
+
+  # Return the plot
+  return(p)
+}
+#plot Covid cases for China
+china_covid_case <- plot_covid_cases(covid_cases, "chn","China")
+china_covid_case
+```
+
+#Task 4
+```{r}
+skim(covid_cases)
+```
+
+
 
