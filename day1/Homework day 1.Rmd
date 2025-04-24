@@ -19,7 +19,7 @@ library(ggplot2)
 ```
 #Task 1
 ```{r}
-covid_cases <- readRDS("D:/1. OUCRU/R training course/R-cafe/day1/data/covid_cases.rds")  
+covid_cases <- readRDS("..  /day1/data/covid_cases.rds")  
 skim(covid_cases)
 ```
 #Task 2
