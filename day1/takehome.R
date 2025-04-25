@@ -124,3 +124,4 @@ plot_cases(covid_cases,
 library(skimr)
 skim(covid_cases, cases_chn, cases_vnm, cases_usa, cases_sgp)
 # and list some observations
+
