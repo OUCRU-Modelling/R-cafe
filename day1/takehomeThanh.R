@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # ====== R Scipt for take home exercise solution === 
 renv::init()
 
