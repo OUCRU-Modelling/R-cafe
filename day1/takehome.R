@@ -62,7 +62,7 @@ compute_percent <- function(data, country_code){
   # check if case_global was computed 
   if (! ("case_global" %in% colnames(data)) ){
     warning("case_global not found, compute case_global instead")
-    data[["case_global"]] <- data[,  grep("cases_", colnames(covid_cases)) ]
+    data[["case_global"]] <- data[,  grep("cases_", colnames(data)) ]
   }
   
   # compute percent and return
