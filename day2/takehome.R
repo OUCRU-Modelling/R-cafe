@@ -1,7 +1,7 @@
 # Take home exercise Day 2 === 
 
 #Task 1: data import
-covid_cases <- readRDS("../R-cafe/day1/data/covid_cases.rds")
+covid_cases <- readRDS("../day1/data/covid_cases.rds")
 
 install.packages("tidyverse")
 install.packages("lubridate")
@@ -30,7 +30,7 @@ skim(covid_cases)
 
 #Filter the data for the week 3-12 of 2020
 covid_cases <- covid_cases %>% 
-  filter(year(date) == 2020 & week(date) > 3 & week(date) <=12)
+  filter(year(date) == 2020 & week(date) >= 3 & week(date) <=12)
 print(covid_cases)
 
 ###Task 3: Data transformation
@@ -73,13 +73,14 @@ print(plot_data)
     mutate(country = case_when(
       country == "chn" ~ "China", 
       country == "deu" ~ "Germany",
-      country == "ita" ~ "Italy",
-      country == "usa" ~ "USA", 
       country == "esp" ~ "Spain",
+      country == "ita" ~ "Italy",
+      country == "usa" ~ "USA",
       TRUE~ country) %>%  fct_relevel("Others", after = Inf)), mapping = aes(x = date, y = pct_cases, fill = country)) + 
     geom_area() + 
     labs(x = "Date", y = "Percentage of Total Cases") + 
     scale_y_continuous(labels = scales::label_percent(scale = 1), breaks = seq(0, 100, by = 10)) +
     scale_x_date(date_breaks = "1 week", date_labels = "W%W") + 
     ggtitle("Percentage of COVID-19 Case Counts per Country for the First 10 Weeks of 2020")
-  
+   
+   
