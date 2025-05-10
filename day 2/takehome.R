@@ -28,6 +28,7 @@ top_countries <- covid_cases %>%
   summarise(total_cases = sum(cases)) %>%
   slice_max(total_cases, n = top_n) %>%
   pull(country)
+top_countries
 
 #Task 4: Data visulization
 plot_data %>%
