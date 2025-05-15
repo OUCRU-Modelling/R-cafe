@@ -13,7 +13,7 @@ library(tidyverse)
 ```
 
 ```{r}
-covid_cases <- readRDS("../data/covid_cases.rds")
+covid_cases <- readRDS("../day1/data/covid_cases.rds")
 
 covid_cases <- covid_cases %>%
   pivot_longer(
