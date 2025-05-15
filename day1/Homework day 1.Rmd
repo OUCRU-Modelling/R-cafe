@@ -19,19 +19,19 @@ library(ggplot2)
 ```
 #Task 1
 ```{r}
-covid_cases <- readRDS("..  /day1/data/covid_cases.rds")  
+covid_cases <- readRDS("../day1/data/covid_cases.rds")  
 skim(covid_cases)
 ```
 #Task 2
 
 ```{r} 
 covid_cases$date <- as.Date(covid_cases$date)
-first_report_date <- min(covid_cases$date)
-last_report_date <- max(covid_cases$date)
+first_report_date <- min(covid_cases$date, na.rm=TRUE)
+last_report_date <- max(covid_cases$date,na.rm=TRUE)
 
 covid_cases <- covid_cases |> 
   mutate(
-    global_cases =rowSums(select(covid_cases, !date )),
+    global_cases =rowSums(select(covid_cases, !date )), 
     percent_chn = (cases_chn / global_cases) * 100)
 
 ```

@@ -1,0 +1,167 @@
+---
+title: "HW DAY 2"
+author: "Thuyltp"
+date: "2025-04-25"
+output: html_document
+---
+
+```{r}
+
+install.packages(c("readxl", "dplyr", "here", "stringr", "Hmisc"))
+renv::snapshot()
+
+```
+```{r}
+library(readxl)
+library(dplyr)
+library(here)
+library(stringr)
+library(Hmisc)
+library(skimr)
+```
+#env sheet
+```{r}
+data_path <- here("data", "2-10-2020-_03TS_V1_Data.xls")  # Replace with your actual file name if needed
+enr <- read_excel(data_path, sheet="ENR")%>%
+  setNames(tolower(names(.)))
+summary(enr) 
+str(enr)
+skim(enr)
+
+enr <- enr %>%
+  mutate(across( #across is select a set of column
+    where(is.character),
+    ~ case_when(
+      .x == "Y" ~ "yes",
+      .x == "N" ~ "no",
+      .x == "UNKNOWN" ~ NA_character_,
+      TRUE ~ .x
+    )
+  )) %>%
+  mutate(across(
+    where(~ all(.x %in% c("yes", "no", NA), na.rm = TRUE)),
+    ~ factor(.x, levels = c("no", "yes"), labels = c(0, 1))
+  ))
+```
+```{r}
+
+enr <- enr %>%
+  mutate(across( #across is select a set of column
+    where(is.character),
+    function(a){
+      case_when(
+      a == "Y" ~ "yes",
+      a == "N" ~ "no",
+      a == "UNKNOWN" ~ NA_character_,
+      TRUE ~ a
+    )}
+  )) %>%
+  mutate(across(
+    where(~ all(.x %in% c("yes", "no", NA), na.rm = TRUE)),
+    ~ factor(.x, levels = c("no", "yes"), labels = c(0, 1))
+  ))
+```
+
+#adm sheet
+```{r}
+adm <- read_excel("../data/2-10-2020-_03TS_V1_Data.xls", sheet="ADM") |> 
+  setNames(tolower(names(.)))
+summary(adm) 
+str(adm)
+skim(adm)
+
+adm <- adm %>%
+  mutate(across(
+    where(is.character),
+    ~ case_when( 
+      .x == "Y" ~ "yes",
+      .x == "N" ~ "no",
+      .x == "UNKNOWN" ~ NA_character_,
+      TRUE ~ .x
+    )
+  )) %>%
+  mutate(across(
+    where(~ all(.x %in% c("yes", "no", NA), na.rm = TRUE)),
+    ~ factor(.x, levels = c("no", "yes"), labels = c(0, 1))
+  ))
+```
+
+#Task 2
+```{r}
+allocation_data <- read_excel("./data/03TS_Randlist.xlsx", sheet="Allocation") %>% 
+  setNames(tolower(names(.)))
+randolist <- allocation_data %>%
+  filter(row_number() %in% c(1:272)) %>%  #keep 272 first rows 
+  rename(arm = r.arm) %>% #rename arm to r.arm
+  mutate(
+    pat.id = str_replace(pat.id, ".*-", ""),
+    usubjid = paste("003", pat.id, sep = "-"),
+    arm = case_when(
+      arm == "14 ampoules: TETANUS ANTITOXIN (IM) + 2 prefilled-syringes : TETAGAM®P (intrathecal))" ~ "equine and intrathecal",
+      arm == "14 ampoules: TETANUS ANTITOXIN (IM)" ~ "equine and sham",
+      arm == "12 prefilled-syringes : TETAGAM®P (IM) + 2 prefilled-syringes : TETAGAM®P (intrathecal))" ~ "human and intrathecal",
+      arm == "12 prefilled-syringes : TETAGAM®P (IM)" ~ "human and sham"
+    )
+  )
+```
+```{r}
+violations_file_path <- here("data", "Protocol violations, exclusions, withdrawals.xlsx") 
+# Read and standardize all relevant sheets
+pilot <- read_excel(violations_file_path, sheet = "Pilot") %>%
+  setNames(tolower(names(.)))
+
+mv_before_im <- read_excel(violations_file_path, sheet = "MV before IM") %>%
+  setNames(tolower(names(.)))
+
+mv_before_it <- read_excel(violations_file_path, sheet = "MV before IT") %>%
+  setNames(tolower(names(.)))
+
+protocol_violation <- read_excel(violations_file_path, sheet = "Protocol violation") %>%
+  setNames(tolower(names(.)))
+
+withdrawals <- read_excel(violations_file_path, sheet = "Withdrawals") %>%
+  setNames(tolower(names(.)))
+
+it_per_protocol <- read_excel(violations_file_path, sheet = "IT Per protocol") %>%
+  setNames(tolower(names(.)))
+
+im_per_protocol <- read_excel(violations_file_path, sheet = "IM per protocol") %>%
+  setNames(tolower(names(.)))
+
+im_itt <- read_excel(violations_file_path, sheet = "IM ITT") %>%
+  setNames(tolower(names(.)))
+
+# Rename column for consistency
+im_itt <- im_itt %>% rename(usubjid = "id")
+```
+
+```{r}
+# Combine USUBJIDs for exclusion
+excluded_subjects <- unique(c(pilot$usubjid, withdrawals$usubjid))
+
+# Filter ENR and ADM to remove excluded subjects
+enr <- enr %>% filter(!usubjid %in% excluded_subjects)
+adm <- adm %>% filter(!usubjid %in% excluded_subjects)
+```
+```{r}
+baseline_dataset <- enr |> 
+  select(-c(entry, studyid, subjid, event)) |> 
+  left_join(
+    adm,
+    by = "usubjid") |> 
+  left_join(randolist |> select(usubjid, arm), by="usubjid")
+```
+
+```{r}
+baseline_data_raw <- upData(
+  baseline_dataset,
+  bmi = weight / ((height / 100) ^ 2),
+  # New variable derived from weight and height
+  labels = c(
+    age = "Age (years)",
+    icudays = "Days in ICU"
+    )
+  )
+```
+
+
