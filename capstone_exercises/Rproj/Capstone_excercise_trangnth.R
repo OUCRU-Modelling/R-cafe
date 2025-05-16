@@ -1,3 +1,5 @@
+#I.. DADTA PREPARATION
+
 #install packages (if needed)
 install.packages(c("readxl", "dplyr", "here", "stringr", "Hmisc"))
 setwd("C:/Users/dhtha/OneDrive - Oxford University Clinical Research Unit/Documents/R-cafe/capstone_exercises/Rproj")
@@ -135,4 +137,70 @@ baseline_data_raw <- upData(
   )
 )
 
+#II. TABLE CREATION
+#1. Baseline characteristics: 
+#Patient's detail: sex, age, bmi
 
+# summary numeric variables (age, bmi)
+numeric_summary <- baseline_data_raw %>%
+  summarise(
+    age_median = median(age, na.rm = TRUE),
+    age_Q1 = quantile(age, 0.25, na.rm = TRUE),
+    age_Q3 = quantile(age, 0.75, na.rm = TRUE),
+    age_min = min(age, na.rm = TRUE),
+    age_max = max(age, na.rm = TRUE),
+    
+    bmi_median = median(bmi, na.rm = TRUE),
+    bmi_Q1 = quantile(bmi, 0.25, na.rm = TRUE),
+    bmi_Q3 = quantile(bmi, 0.75, na.rm = TRUE),
+    bmi_min = min(bmi, na.rm = TRUE),
+    bmi_max = max(bmi, na.rm = TRUE)
+  )
+
+# summary category variable (sex)
+sex_summary <- baseline_data_raw %>%
+  count(sex) %>%
+  mutate(percent = round(n / sum(n) * 100, 1))
+
+# print value
+print(numeric_summary)
+print(sex_summary)
+
+#Past Medical History: Variables like ADM.HYPERTENSION, ADM.MYOCARDIALINFART, ADM.SEVERELIVER,etc
+vars_hist <- c("hypertension", "myocardialinfart", "angina", "perivascular", "chronicpul",
+  "connectivetissue", "mildliver", "hemiplegia", "diawithchronic", "severeliver",
+  "aids", "cardiacfailureiii", "cardiacfailureiv", "cerebrovascular", "severeresp",
+  "pepticulcer", "diabetes", "severekidney", "malignancy", "tumour", "dementia")
+
+# T???o b???ng th???ng kê t???n su???t cho t???ng bi???n (s??? lu???ng và ph???n tram)
+result <- sapply(baseline_data_raw[vars_hist], function(x) {
+  count <- sum(x == 1, na.rm = TRUE)
+  percent <- round(mean(x == 1, na.rm = TRUE) * 100, 1)
+  paste0(count, " (", percent, "%)")
+})
+
+# Chuy???n v??? d???ng data frame d??? xem
+summary_table <- data.frame(Variable = names(result), Count_Percentage = as.vector(result))
+
+#Other comorbiditys
+# Tính t???ng s??? dòng h???p l??? (dùng d??? tính ph???n tram)
+n_total <- nrow(baseline_data_raw)
+# T???ng s??? tru???ng h???p có d??? li???u ??? comorbidityoth1 ho???c comorbidityoth2
+others_combined_count <- sum(
+  !is.na(baseline_data_raw$comorbidityoth1) & trimws(baseline_data_raw$comorbidityoth1) != "" |
+    !is.na(baseline_data_raw$comorbidityoth2) & trimws(baseline_data_raw$comorbidityoth2) != ""
+)
+# Tính ph???n tram
+others_combined_percent <- round(others_combined_count / n_total * 100, 1)
+# T???o b???ng 1 dòng cho "Others"
+others_summary <- data.frame(
+  Variable = "Others",
+  Value = "Others",
+  Count_Percentage = paste0(others_combined_count, " (", others_combined_percent, "%)")
+)
+# G???p v???i b???ng binary_summary có s???n
+summary_all <- rbind(binary_summary, others_summary)
+# Hi???n th??? k???t qu???
+print(summary_all)
+
+#Patient History: Duration of illness, incubation period, respiratory rate, platelet count, etc.
