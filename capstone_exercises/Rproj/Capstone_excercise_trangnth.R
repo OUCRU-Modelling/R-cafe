@@ -168,41 +168,41 @@ print(sex_summary)
 
 #Past Medical History: Variables like ADM.HYPERTENSION, ADM.MYOCARDIALINFART, ADM.SEVERELIVER,etc
 
-# Danh sách bi???n nh??? phân t??? Past Medical History
+# Binary variables list from Past Medical History
 vars_hist <- c("hypertension", "myocardialinfart", "angina", "perivascular", "chronicpul",
                "connectivetissue", "mildliver", "hemiplegia", "diawithchronic", "severeliver",
                "aids", "cardiacfailureiii", "cardiacfailureiv", "cerebrovascular", "severeresp",
                "pepticulcer", "diabetes", "severekidney", "malignancy", "tumour", "dementia",
                "electivesurgery", "emergencysurgery"
 )
-# T???o b???ng th???ng kê s??? lu???ng (%) cho t???ng bi???n nh??? phân
+# summary table for binary variables
 result <- sapply(baseline_data_raw[vars_hist], function(x) {
   count <- sum(x == 1, na.rm = TRUE)
   percent <- round(mean(x == 1, na.rm = TRUE) * 100, 1)
   paste0(count, " (", percent, "%)")
 })
-# Dua k???t qu??? thành data frame
+# transfer result to data frame
 summary_table <- data.frame(
   Variable = names(result),
   Count_Percentage = as.vector(result)
 )
-# T???ng s??? dòng (dùng d??? tính ph???n tram)
+# total row (used to calculate percentage)
 n_total <- nrow(baseline_data_raw)
-# D???m s??? tru???ng h???p có d??? li???u trong comorbidityoth1 ho???c comorbidityoth2
+# count data in  comorbidityoth1 or comorbidityoth2
 others_combined_count <- sum(
   !is.na(baseline_data_raw$comorbidityoth1) & trimws(baseline_data_raw$comorbidityoth1) != "" |
     !is.na(baseline_data_raw$comorbidityoth2) & trimws(baseline_data_raw$comorbidityoth2) != ""
 )
-# Tính ph???n tram
+# Calculate percentage for text value (comorbidityother1 & 2)
 others_combined_percent <- round(others_combined_count / n_total * 100, 1)
-# T???o dòng "Others"
+# Create "Others" including comorbidityother1 & 2
 others_summary <- data.frame(
   Variable = "Others",
   Count_Percentage = paste0(others_combined_count, " (", others_combined_percent, "%)")
 )
-# G???p b???ng chính và dòng Others l???i
+# Merge previous table and Others
 summary_all <- rbind(summary_table, others_summary)
-# Hi???n th??? k???t qu???
+# Print value
 print(summary_all)
 
 
